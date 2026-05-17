@@ -1,0 +1,46 @@
+import { create } from 'zustand'
+import type { AudioAnalysis, AudioContextState } from '@/types/audio.types'
+
+interface AudioStore {
+  contextState: AudioContextState
+  isPlaying: boolean
+  currentTime: number
+  duration: number
+  isLoading: boolean
+  analysis: AudioAnalysis | null
+  abMode: 'original' | 'processed'
+  ffmpegLoaded: boolean
+  ffmpegLoadProgress: number
+
+  setContextState: (s: AudioContextState) => void
+  setIsPlaying: (v: boolean) => void
+  setCurrentTime: (t: number) => void
+  setDuration: (d: number) => void
+  setIsLoading: (v: boolean) => void
+  setAnalysis: (a: AudioAnalysis | null) => void
+  setAbMode: (m: 'original' | 'processed') => void
+  setFfmpegLoaded: (v: boolean) => void
+  setFfmpegLoadProgress: (p: number) => void
+}
+
+export const useAudioStore = create<AudioStore>((set) => ({
+  contextState: 'uninitialized',
+  isPlaying: false,
+  currentTime: 0,
+  duration: 0,
+  isLoading: false,
+  analysis: null,
+  abMode: 'processed',
+  ffmpegLoaded: false,
+  ffmpegLoadProgress: 0,
+
+  setContextState: (s) => set({ contextState: s }),
+  setIsPlaying: (v) => set({ isPlaying: v }),
+  setCurrentTime: (t) => set({ currentTime: t }),
+  setDuration: (d) => set({ duration: d }),
+  setIsLoading: (v) => set({ isLoading: v }),
+  setAnalysis: (a) => set({ analysis: a }),
+  setAbMode: (m) => set({ abMode: m }),
+  setFfmpegLoaded: (v) => set({ ffmpegLoaded: v }),
+  setFfmpegLoadProgress: (p) => set({ ffmpegLoadProgress: p }),
+}))
