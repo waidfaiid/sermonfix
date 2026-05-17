@@ -215,14 +215,15 @@ export class AudioEngine {
     if (!this.ctx) return
     const now = this.ctx.currentTime
 
-    // Hum: notch filters only reduce when enabled — gain stays at 0 when off
-    // BiquadFilter 'notch' type doesn't use gain, so no-op. Bypass by setting Q
-    // very low (flat response) when disabled.
+    // Hum: 'allpass' is a true amplitude-transparent bypass.
+    // 'notch' with high Q = narrow, surgical hum removal.
     this.humFilters.forEach((f) => {
-      f.Q.setTargetAtTime(
-        params.humEnabled ? 10 + params.humAmount * 20 : 0.01,
-        now, 0.05,
-      )
+      if (params.humEnabled) {
+        f.type = 'notch'
+        f.Q.setTargetAtTime(10 + params.humAmount * 20, now, 0.05)
+      } else {
+        f.type = 'allpass'
+      }
     })
 
     // Noise gate preview: when disabled keep ratio=1 (transparent).
