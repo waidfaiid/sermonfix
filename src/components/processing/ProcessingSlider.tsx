@@ -59,7 +59,8 @@ export function ProcessingSlider({
         max={max}
         step={step}
         disabled={!enabled}
-        className="relative flex items-center select-none touch-none w-full h-11"
+        className="relative flex items-center select-none w-full h-11"
+        style={{ touchAction: 'pan-y' }}
       >
         <RadixSlider.Track className="bg-slider-track relative grow rounded-pill h-2">
           <RadixSlider.Range className="absolute bg-accent rounded-pill h-full" />

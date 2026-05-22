@@ -134,7 +134,7 @@ function WorkspaceView() {
   if (!activeFile) return <DropZone />
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+    <div className="flex-1 flex flex-col">
 
       {/* Compact sticky playbar — shown only when the player scrolls out of view */}
       <StickyPlaybar visible={showStickyBar} />
@@ -190,6 +190,39 @@ export default function App() {
   useFFmpegLoader()
 
   const hasFiles = useFileStore((s) => s.files.length > 0)
+
+  // Global keyboard shortcuts: Space = play/pause, ← = −10 s, → = +10 s
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        const { isPlaying } = useAudioStore.getState()
+        if (isPlaying) {
+          audioEngine.pause()
+          useAudioStore.getState().setIsPlaying(false)
+        } else {
+          audioEngine.play()
+          useAudioStore.getState().setIsPlaying(true)
+        }
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        const { currentTime, duration, trimStart } = useAudioStore.getState()
+        const next = Math.max(trimStart, currentTime - 10)
+        audioEngine.seek(next)
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        const { currentTime, duration, trimEnd } = useAudioStore.getState()
+        const hi = trimEnd ?? duration
+        const next = Math.min(hi, currentTime + 10)
+        audioEngine.seek(next)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   return (
     <Layout>

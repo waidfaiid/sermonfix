@@ -30,11 +30,9 @@ export interface ProcessingParams {
 
   noiseEnabled: boolean
   noiseAmount: number
-  /** Dry-path delay in milliseconds to time-align the original signal with the
-   *  DTLN-processed wet signal.  Compensates for the WorkletNode ring-buffer
-   *  latency (~32 ms) plus the two MediaStream bridge hops (~10 ms).
-   *  User-adjustable in 1 ms steps via the ± controls in ProcessingPanel. */
-  dtlnLatencyMs: number
+  /** Delay in ms applied to the dry bypass path to compensate for RNNoise latency.
+   *  Default 10 ms (= 480 samples at 48 kHz). User-tunable via ± buttons. */
+  noiseLatencyMs: number
 
   eqEnabled: boolean
   eqIntensity: number
@@ -73,6 +71,8 @@ export interface ExportOptions {
   channels: 1 | 2
   normalizeToLUFS: number
   filename: string
+  /** Suffix appended between the base filename and the extension, e.g. "_fixed". Empty string = no suffix. */
+  filenameSuffix: string
   /** Trim start in seconds — audio before this point is excluded from export */
   trimStart?: number
   /** Trim end in seconds (absolute position) — audio after this point is excluded from export */

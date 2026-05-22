@@ -37,6 +37,28 @@ function TrimMarker({ position, onDrag, side, color = 'red' }: TrimMarkerProps) 
     window.addEventListener('mouseup', onMouseUp)
   }, [onDrag])
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const waveformContainer = (e.currentTarget as HTMLElement).closest('[data-waveform-container]') as HTMLElement | null
+    if (!waveformContainer) return
+    const rect = waveformContainer.getBoundingClientRect()
+
+    function onTouchMove(ev: TouchEvent) {
+      if (ev.touches.length === 0) return
+      ev.preventDefault()
+      const fraction = Math.max(0, Math.min(1, (ev.touches[0].clientX - rect.left) / rect.width))
+      onDrag(fraction)
+    }
+    function onTouchEnd() {
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend', onTouchEnd)
+  }, [onDrag])
+
   // Hide marker when out of visible canvas range
   if (position < -0.02 || position > 1.02) return null
 
@@ -45,8 +67,9 @@ function TrimMarker({ position, onDrag, side, color = 'red' }: TrimMarkerProps) 
   return (
     <div
       className="absolute top-0 bottom-0 z-20 flex flex-col items-center"
-      style={{ left: `${position * 100}%`, transform: 'translateX(-50%)', cursor: 'ew-resize', width: '12px' }}
+      style={{ left: `${position * 100}%`, transform: 'translateX(-50%)', cursor: 'ew-resize', width: '24px', touchAction: 'none' }}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
     >
       <div className="w-0.5 h-full opacity-90" style={{ backgroundColor: lineColor }} />
       <div
@@ -250,11 +273,12 @@ export function WaveformDisplay({ file }: WaveformDisplayProps) {
     seek(e.clientX)
   }
 
-  // ── Pinch-to-zoom (mobile) ────────────────────────────────────────────────
+  // ── Pinch-to-zoom + single-finger pan (mobile) ───────────────────────────
 
-  const pinchRef = useRef<{ dist: number; centerFrac: number } | null>(null)
+  const pinchRef    = useRef<{ dist: number; centerFrac: number } | null>(null)
+  const swipeRef    = useRef<{ startX: number; lastX: number; moved: boolean } | null>(null)
 
-  // non-passive touchmove so we can preventDefault for pinch
+  // non-passive touchmove — handles pinch zoom and horizontal swipe pan
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -269,6 +293,16 @@ export function WaveformDisplay({ file }: WaveformDisplayProps) {
         const { zoom } = zoomRef.current
         applyZoom(zoom * factor, pinchRef.current.centerFrac)
         pinchRef.current.dist = newDist
+      } else if (e.touches.length === 1 && swipeRef.current && zoomRef.current.zoom > 1.01) {
+        // Horizontal swipe to pan when zoomed in
+        const dx = e.touches[0].clientX - swipeRef.current.lastX
+        const rect = (canvas as HTMLCanvasElement).getBoundingClientRect()
+        if (Math.abs(dx) > 2) {
+          e.preventDefault()
+          swipeRef.current.moved = true
+          swipeRef.current.lastX = e.touches[0].clientX
+          panView(-dx / (rect.width * zoomRef.current.zoom))
+        }
       }
     }
     canvas.addEventListener('touchmove', onTouchMove, { passive: false })
@@ -278,8 +312,9 @@ export function WaveformDisplay({ file }: WaveformDisplayProps) {
   function handleCanvasTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
     if (e.touches.length === 1) {
       pinchRef.current = null
-      seek(e.touches[0].clientX)
+      swipeRef.current = { startX: e.touches[0].clientX, lastX: e.touches[0].clientX, moved: false }
     } else if (e.touches.length === 2) {
+      swipeRef.current = null
       const rect = canvasRef.current!.getBoundingClientRect()
       const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2
       pinchRef.current = {
@@ -292,8 +327,14 @@ export function WaveformDisplay({ file }: WaveformDisplayProps) {
     }
   }
 
-  function handleCanvasTouchEnd() {
+  function handleCanvasTouchEnd(e: React.TouchEvent<HTMLCanvasElement>) {
     if (pinchRef.current) pinchRef.current = null
+    // Only seek if the finger didn't pan
+    if (swipeRef.current && !swipeRef.current.moved) {
+      const touch = e.changedTouches[0]
+      if (touch) seek(touch.clientX)
+    }
+    swipeRef.current = null
   }
 
   // ── Scroll-wheel zoom + pan (desktop) ────────────────────────────────────
@@ -379,7 +420,7 @@ export function WaveformDisplay({ file }: WaveformDisplayProps) {
           onClick={handleCanvasClick}
           onTouchStart={handleCanvasTouchStart}
           onTouchEnd={handleCanvasTouchEnd}
-          style={{ cursor: duration > 0 ? 'pointer' : 'default', touchAction: 'none' }}
+          style={{ cursor: duration > 0 ? 'pointer' : 'default', touchAction: 'pan-y' }}
         />
 
         {!isAnalyzing && duration > 0 && (

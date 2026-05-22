@@ -76,7 +76,8 @@ export function ExportPanel() {
       return
     }
 
-    const filesToExport = files.filter((f) => f.status !== 'done' && f.file)
+    // Allow re-exporting files that were previously exported (status 'done' or 'error')
+    const filesToExport = files.filter((f) => f.file && f.status !== 'processing')
     if (filesToExport.length === 0) { addToast('Keine Dateien zum Exportieren.', 'info'); return }
 
     setIsExporting(true)
@@ -84,6 +85,7 @@ export function ExportPanel() {
     const noiseProfile = params.humAutoMode && params.humDetectedFreqs.length > 0 ? humNoiseProfile : null
     const zip = filesToExport.length > 1 ? new JSZip() : null
     const blobs: { name: string; blob: Blob }[] = []
+    const isSingle = filesToExport.length === 1
 
     for (let i = 0; i < filesToExport.length; i++) {
       const f = filesToExport[i]
@@ -101,7 +103,6 @@ export function ExportPanel() {
       try {
         const blob = await exportFile(f.file, params, {
           ...exportOptions,
-          filename: f.name.replace(/\.[^.]+$/, ''),
           normalizeToLUFS: params.limiterTarget,
           trimStart: trimStart > 0 ? trimStart : undefined,
           trimEnd: trimEnd !== null ? trimEnd : undefined,
@@ -117,7 +118,14 @@ export function ExportPanel() {
           })
         }, noiseProfile)
 
-        const outName = `${f.name.replace(/\.[^.]+$/, '')}_fixed.${exportOptions.format}`
+        // Single-file export: use the custom filename from the input field (fallback to original name)
+        // Multi-file export: always use original filename so each file keeps its identity
+        const originalBase = f.name.replace(/\.[^.]+$/, '')
+        const base = isSingle
+          ? (exportOptions.filename.trim() || originalBase)
+          : originalBase
+        const outName = `${base}${exportOptions.filenameSuffix}.${exportOptions.format}`
+
         updateFile(f.id, { status: 'done', outputBlob: blob })
         blobs.push({ name: outName, blob })
         if (zip) zip.file(outName, blob)
@@ -227,16 +235,34 @@ export function ExportPanel() {
           </p>
         )}
 
-        {/* Filename */}
-        <div className="space-y-1">
+        {/* Filename + Suffix */}
+        <div className="space-y-2">
           <label className="text-xs text-text-secondary">Dateiname</label>
-          <input
-            type="text"
-            value={exportOptions.filename}
-            onChange={(e) => setExportOptions({ filename: e.target.value })}
-            placeholder={activeFile ? activeFile.name.replace(/\.[^.]+$/, '') + '_fixed' : 'datei_fixed'}
-            className="w-full bg-slider-track text-text-primary text-sm rounded-lg px-3 py-2.5 border border-card-border focus:outline-none focus:border-accent placeholder:text-text-secondary"
-          />
+          {/* Row: [base name input] + [suffix input] . [format badge] */}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={exportOptions.filename}
+              onChange={(e) => setExportOptions({ filename: e.target.value })}
+              placeholder={activeFile ? activeFile.name.replace(/\.[^.]+$/, '') : 'dateiname'}
+              className="flex-1 min-w-0 bg-slider-track text-text-primary text-sm rounded-lg px-3 py-2.5 border border-card-border focus:outline-none focus:border-accent placeholder:text-text-secondary"
+            />
+            <input
+              type="text"
+              value={exportOptions.filenameSuffix}
+              onChange={(e) => setExportOptions({ filenameSuffix: e.target.value })}
+              placeholder="kein Suffix"
+              title="Suffix (z. B. _fixed) — leer lassen für keinen Anhang"
+              className="w-24 shrink-0 bg-slider-track text-text-primary text-sm rounded-lg px-2 py-2.5 border border-card-border focus:outline-none focus:border-accent placeholder:text-text-secondary text-center"
+            />
+            <span className="text-xs text-text-secondary shrink-0">.{exportOptions.format}</span>
+          </div>
+          <p className="text-[11px] text-text-secondary">
+            Vorschau: <span className="text-text-primary font-mono">
+              {(exportOptions.filename.trim() || (activeFile ? activeFile.name.replace(/\.[^.]+$/, '') : 'datei'))}
+              {exportOptions.filenameSuffix}.{exportOptions.format}
+            </span>
+          </p>
         </div>
       </div>
 

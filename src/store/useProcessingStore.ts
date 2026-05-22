@@ -41,7 +41,7 @@ interface ProcessingStore extends ProcessingParams {
   setHumAnalysisState: (s: HumAnalysisState) => void
   setNoiseEnabled: (v: boolean) => void
   setNoiseAmount: (v: number) => void
-  setDtlnLatencyMs: (v: number) => void
+  setNoiseLatencyMs: (v: number) => void
   setEqEnabled: (v: boolean) => void
   setEqIntensity: (v: number) => void
   setEqBands: (bands: EQBand[]) => void
@@ -62,7 +62,7 @@ interface ProcessingStore extends ProcessingParams {
   applyCompressionAutoPreset: (originalDynamicsDb: number) => void
   setExciterEnabled: (v: boolean) => void
   setExciterAmount: (v: number) => void
-  setExciterMode: (v: 'brilliance' | 'warmth') => void
+  setExciterMode: (v: 'auto' | 'tube' | 'tape') => void
   setDesibilanceEnabled: (v: boolean) => void
   setDesibilanceAmount: (v: number) => void
   setDesibilanceFreq: (v: number) => void
@@ -91,7 +91,7 @@ export const useProcessingStore = create<ProcessingStore>((set, get) => ({
   humAnalysisState: 'idle' as HumAnalysisState,
   noiseEnabled: false,
   noiseAmount: 0.4,
-  dtlnLatencyMs: 48,
+  noiseLatencyMs: 28.65,
   eqEnabled: true,
   eqIntensity: 0.5,
   eqBands: SPEECH_EQ_CURVE,
@@ -105,7 +105,7 @@ export const useProcessingStore = create<ProcessingStore>((set, get) => ({
   pinkNoiseMixLinear: 0,
   exciterEnabled: false,
   exciterAmount: 0.2,
-  exciterMode: 'brilliance',
+  exciterMode: 'auto',
   desibilanceEnabled: false,
   desibilanceAmount: 0,
   desibilanceFreq: 7000,
@@ -124,7 +124,8 @@ export const useProcessingStore = create<ProcessingStore>((set, get) => ({
     sampleRate: 44100,
     channels: 2,
     normalizeToLUFS: -16,
-    filename: 'predigt_fixed',
+    filename: '',
+    filenameSuffix: '_fixed',
   },
 
   setHumEnabled: (v) => set({ humEnabled: v }),
@@ -146,7 +147,7 @@ export const useProcessingStore = create<ProcessingStore>((set, get) => ({
   setHumAnalysisState: (s) => set({ humAnalysisState: s }),
   setNoiseEnabled: (v) => set({ noiseEnabled: v }),
   setNoiseAmount: (v) => set({ noiseAmount: v }),
-  setDtlnLatencyMs: (v) => set({ dtlnLatencyMs: Math.round(Math.max(0, Math.min(200, v)) * 10) / 10 }),
+  setNoiseLatencyMs: (v) => set({ noiseLatencyMs: Math.round(Math.max(0, Math.min(50, v)) * 100) / 100 }),
   setEqEnabled: (v) => set({ eqEnabled: v }),
   setEqIntensity: (v) => set({ eqIntensity: v }),
   setEqBands: (bands) => set({ eqBands: bands }),
@@ -213,7 +214,7 @@ export const useProcessingStore = create<ProcessingStore>((set, get) => ({
       humSubtractionAlpha: s.humSubtractionAlpha,
       noiseEnabled: s.noiseEnabled,
       noiseAmount: s.noiseAmount,
-      dtlnLatencyMs: s.dtlnLatencyMs,
+      noiseLatencyMs: s.noiseLatencyMs,
       eqEnabled: s.eqEnabled,
       eqIntensity: s.eqIntensity,
       eqBands: s.eqBands,

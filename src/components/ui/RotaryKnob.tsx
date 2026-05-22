@@ -93,6 +93,30 @@ export function RotaryKnob({ value, max, onChange, label, isEnd = false, large =
     window.addEventListener('mouseup', onMouseUp)
   }, [editing, value, max, onChange])
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (editing) return
+    e.preventDefault()
+    dragRef.current = { startY: e.touches[0].clientY, startValue: value }
+
+    function onTouchMove(ev: TouchEvent) {
+      if (!dragRef.current || ev.touches.length === 0) return
+      ev.preventDefault()
+      const dy = dragRef.current.startY - ev.touches[0].clientY
+      const delta = (dy / 200) * max
+      const next = Math.max(0, Math.min(max, dragRef.current.startValue + delta))
+      onChange(next)
+    }
+
+    function onTouchEnd() {
+      dragRef.current = null
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
+
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend', onTouchEnd)
+  }, [editing, value, max, onChange])
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -138,6 +162,7 @@ export function RotaryKnob({ value, max, onChange, label, isEnd = false, large =
       className={`relative flex items-center justify-center ${sizeClass} rounded-full cursor-ns-resize select-none`}
       style={{ touchAction: 'none' }}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
       title={`${label} — ziehen oder scrollen; Doppelklick zum Eingeben`}
