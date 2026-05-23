@@ -81,6 +81,10 @@ export class LUFSAnalyzer {
    * (~141 KB) instead of allocating three full copies of the audio buffer.
    * K-weighting coefficients are computed for the buffer's actual sample rate
    * so the measurement is accurate at 44100 Hz, 48000 Hz, etc.
+   *
+   * Each channel is K-weighted independently and the squared powers are summed
+   * with G_i = 1.0 (BS.1770-4 §2). Averaging channels to mono before squaring
+   * underestimates stereo loudness by up to 3 dB and violates the standard.
    */
   analyze(buffer: AudioBuffer): number {
     const sr = buffer.sampleRate
@@ -93,37 +97,47 @@ export class LUFSAnalyzer {
     const channels: Float32Array[] = []
     for (let ch = 0; ch < numChannels; ch++) channels.push(buffer.getChannelData(ch))
 
-    // K-weighting IIR states (flat scalars — faster than object property access in hot loop)
-    let s1x1 = 0, s1x2 = 0, s1y1 = 0, s1y2 = 0
-    let s2x1 = 0, s2x2 = 0, s2y1 = 0, s2y2 = 0
-
     const { s1b0, s1b1, s1b2, s1a1, s1a2, s2b0, s2b1, s2b2, s2a1, s2a2 } = getCoeffs(sr)
 
-    // Ring buffer for 400 ms sliding window (~141 KB vs 617 MB for a 61-min file)
+    // Per-channel K-weighting IIR states (BS.1770-4 §2: each channel filtered independently)
+    const s1x1 = new Float64Array(numChannels)
+    const s1x2 = new Float64Array(numChannels)
+    const s1y1 = new Float64Array(numChannels)
+    const s1y2 = new Float64Array(numChannels)
+    const s2x1 = new Float64Array(numChannels)
+    const s2x2 = new Float64Array(numChannels)
+    const s2y1 = new Float64Array(numChannels)
+    const s2y2 = new Float64Array(numChannels)
+
+    // Ring buffer stores per-sample sum of squared K-weighted powers across all channels.
+    // Each slot = Σ_ch y2_ch² (already squared, no amplitude stored).
     const ring = new Float64Array(blockSize)
     let ringHead = 0
     let ringSumSq = 0.0
     const blocks: number[] = []
 
     for (let i = 0; i < numSamples; i++) {
-      // Mix channels to mono inline (no intermediate array)
-      let x = channels[0][i]
-      for (let ch = 1; ch < numChannels; ch++) x += channels[ch][i]
-      if (numChannels > 1) x /= numChannels
+      // K-weight each channel independently and sum squared powers (G_i = 1.0 for all)
+      let sumSqInstant = 0
+      for (let ch = 0; ch < numChannels; ch++) {
+        const x = channels[ch][i]
 
-      // K-weighting stage 1
-      const y1 = s1b0*x + s1b1*s1x1 + s1b2*s1x2 - s1a1*s1y1 - s1a2*s1y2
-      s1x2 = s1x1; s1x1 = x; s1y2 = s1y1; s1y1 = y1
+        // K-weighting stage 1
+        const y1 = s1b0*x + s1b1*s1x1[ch] + s1b2*s1x2[ch] - s1a1*s1y1[ch] - s1a2*s1y2[ch]
+        s1x2[ch] = s1x1[ch]; s1x1[ch] = x; s1y2[ch] = s1y1[ch]; s1y1[ch] = y1
 
-      // K-weighting stage 2
-      const y2 = s2b0*y1 + s2b1*s2x1 + s2b2*s2x2 - s2a1*s2y1 - s2a2*s2y2
-      s2x2 = s2x1; s2x1 = y1; s2y2 = s2y1; s2y1 = y2
+        // K-weighting stage 2
+        const y2 = s2b0*y1 + s2b1*s2x1[ch] + s2b2*s2x2[ch] - s2a1*s2y1[ch] - s2a2*s2y2[ch]
+        s2x2[ch] = s2x1[ch]; s2x1[ch] = y1; s2y2[ch] = s2y1[ch]; s2y1[ch] = y2
 
-      // Update ring buffer — subtract outgoing, add incoming
+        sumSqInstant += y2 * y2
+      }
+
+      // Update ring buffer — slots hold already-squared channel-sum power, not amplitude
       const old = ring[ringHead]
-      ring[ringHead] = y2
-      ringSumSq -= old * old
-      ringSumSq += y2 * y2
+      ring[ringHead] = sumSqInstant
+      ringSumSq -= old
+      ringSumSq += sumSqInstant
       ringHead = (ringHead + 1) % blockSize
 
       // Emit a 400 ms block every 100 ms once the ring is full

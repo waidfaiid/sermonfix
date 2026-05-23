@@ -45,6 +45,8 @@ export class AudioEngine {
   private noiseWetGain: GainNode | null = null
   /** Noise params received before RNNoise finished loading. */
   private _pendingNoiseParams: { enabled: boolean; amount: number } | null = null
+  /** Prevents duplicate RNNoise init when init() is called concurrently. */
+  private _rnnoiseInitPromise: Promise<void> | null = null
 
   /** Input anchor of the hum-filter sub-chain. Feeds into the active filter array. */
   private humChainIn: GainNode | null = null
@@ -58,6 +60,11 @@ export class AudioEngine {
   /** DC-blocking highpass at 10 Hz — removes the tiny DC offset produced by
    *  asymmetric tube biasing. Inaudible on tape/auto-tape paths. */
   private exciterDcBlock: BiquadFilterNode | null = null
+  /**
+   * Undoes Chrome DynamicsCompressor auto-makeup so the post-compressor level
+   * matches FFmpeg's un-makeup'd output (export `processedLUFS` reference).
+   */
+  private postCompTrim: GainNode | null = null
   private makeupGain: GainNode | null = null
   private previewNormalizeGain: GainNode | null = null
   private limiterWorklet: AudioWorkletNode | null = null
@@ -95,10 +102,12 @@ export class AudioEngine {
   private limiterInterventionDb = 0
   private readonly lufsAnalyzer = new LUFSAnalyzer()
 
-  /** Tracks the last makeup gain applied so previewNormalizeGain can compensate. */
-  private _currentMakeupDb = 0
-  /** Tracks the last limiterTarget so _applyPreviewNormalize() can be called from setStaticMakeupGainDb(). */
+  /** Tracks the last limiterTarget so preview gain can be adjusted when it changes. */
   private _lastLimiterTarget = -16
+  /** Pre-limiter normalisation gain in dB (export gainDb = target − postEq). */
+  private _previewNormalizeDb = 0
+  private _makeupDb = 0
+  private _postCompTrimDb = 0
 
   get isPlaying() { return this.playing }
   get loadedLUFS(): number { return this.sourceLUFS }
@@ -197,6 +206,9 @@ export class AudioEngine {
     this.exciterDcBlock.frequency.value = 10
     this.exciterDcBlock.Q.value = 0.707
 
+    this.postCompTrim = ctx.createGain()
+    this.postCompTrim.gain.value = 1
+
     this.makeupGain = ctx.createGain()
     this.makeupGain.gain.value = 1
 
@@ -285,10 +297,12 @@ export class AudioEngine {
     // Wet path output: noiseWetGain → compressorStage1 (rnnoiseNode → noiseWetGain in initRnnoise)
     this.noiseWetGain.connect(this.compressorStage1!)
 
-    // Shared post-noise chain: compressor → de-esser → exciter → limiter → out
+    // Shared post-noise chain mirrors export: comp → trim → de-esser → exciter
+    // → makeup → gain → limiter
     this.connectChain([
       this.compressorStage1,
       this.compressorStage2,
+      this.postCompTrim,
       deEsser,
       this.exciterWaveshaper,
       this.exciterDcBlock,
@@ -318,12 +332,32 @@ export class AudioEngine {
    * Runs asynchronously after buildGraph() so audio is immediately available
    * on the fully-dry bypass path while the WASM loads.
    */
-  private async initRnnoise(): Promise<void> {
-    if (!this.ctx || !this.noiseInputGain || !this.noiseWetGain) return
+  private initRnnoise(): Promise<void> {
+    if (this.rnnoiseReady) return Promise.resolve()
+    if (this._rnnoiseInitPromise) return this._rnnoiseInitPromise
+    this._rnnoiseInitPromise = this._initRnnoiseImpl().finally(() => {
+      this._rnnoiseInitPromise = null
+    })
+    return this._rnnoiseInitPromise
+  }
+
+  private async _initRnnoiseImpl(): Promise<void> {
+    if (!this.ctx || !this.noiseInputGain || !this.noiseWetGain || this.rnnoiseReady) return
+
+    try {
+      await this.ctx.audioWorklet.addModule('/rnnoise.worklet.js')
+    } catch {
+      // Already registered on this AudioContext — safe to continue.
+    }
 
     const response = await fetch('/rnnoise.wasm')
     if (!response.ok) throw new Error(`Failed to fetch rnnoise.wasm: ${response.status}`)
     const module = await WebAssembly.compile(await response.arrayBuffer())
+
+    if (this.rnnoiseNode) {
+      try { this.noiseInputGain.disconnect(this.rnnoiseNode) } catch { /* */ }
+      try { this.rnnoiseNode.disconnect() } catch { /* */ }
+    }
 
     this.rnnoiseNode = new AudioWorkletNode(this.ctx, 'rnnoise', {
       channelCountMode: 'explicit',
@@ -454,6 +488,9 @@ export class AudioEngine {
     const decoded = await ctx.decodeAudioData(arrayBuffer)
     this.buffer = decoded
     this.sourceLUFS = this.lufsAnalyzer.analyze(decoded)
+    this._previewNormalizeDb = 0
+    this._makeupDb = 0
+    this._postCompTrimDb = 0
     this.pausedAt = 0
     this.trimStart = 0
     this.trimEnd = null
@@ -466,6 +503,12 @@ export class AudioEngine {
         dbToLinear(Math.max(-30, Math.min(30, inputGainDb))),
         this.ctx.currentTime,
       )
+    }
+    if (this.ctx) {
+      const now = this.ctx.currentTime
+      this.postCompTrim?.gain.setValueAtTime(1, now)
+      this.makeupGain?.gain.setValueAtTime(1, now)
+      this._applyPreviewNormalize(now)
     }
 
     this.pinkNoiseBuffer = createPinkNoiseBuffer(ctx)
@@ -701,7 +744,11 @@ export class AudioEngine {
       }
     }
 
+    const prevTarget = this._lastLimiterTarget
     this._lastLimiterTarget = params.limiterTarget
+    if (params.limiterTarget !== prevTarget) {
+      this._previewNormalizeDb += params.limiterTarget - prevTarget
+    }
 
     // Bypass path: no inputNormalizeGain — match limiterTarget directly from sourceLUFS.
     if (this.bypassNormalizeGain) {
@@ -718,29 +765,39 @@ export class AudioEngine {
     }
   }
 
-  /** Apply a static makeup gain computed offline — call this when compression params change. */
-  setStaticMakeupGainDb(db: number): void {
-    if (!this.makeupGain || !this.ctx) return
-    this._currentMakeupDb = db
-    this.makeupGain.gain.setTargetAtTime(dbToLinear(db), this.ctx.currentTime, 0.1)
-    // Recompute previewNormalizeGain so the total chain gain stays at (targetLUFS − sourceLUFS).
-    this._applyPreviewNormalize(this.ctx.currentTime)
+  /**
+   * Apply export-identical two-step gain staging:
+   *   postCompTrim (measured) cancels Chrome compressor auto-makeup
+   *   makeupGain (+makeupDb) restores to postEq after exciter
+   *   previewNormalize (+gainDb) brings postEq to limiterTarget
+   */
+  setExportGainStaging(makeupDb: number, gainDb: number, postCompTrimDb?: number): void {
+    if (!this.ctx || !this.postCompTrim || !this.makeupGain) return
+    this._makeupDb = makeupDb
+    this._previewNormalizeDb = gainDb
+    this._postCompTrimDb = postCompTrimDb ?? (makeupDb > 0 ? -makeupDb : 0)
+    const now = this.ctx.currentTime
+    if (this.postCompTrim) {
+      this.postCompTrim.gain.setTargetAtTime(dbToLinear(this._postCompTrimDb), now, 0.1)
+    }
+    if (this.makeupGain) {
+      this.makeupGain.gain.setTargetAtTime(dbToLinear(makeupDb), now, 0.1)
+    }
+    this._applyPreviewNormalize(now)
   }
 
-  /**
-   * Adjusts previewNormalizeGain so that makeupGain + previewNormalizeGain
-   * together equal (targetLUFS − WORKING_LEVEL), i.e. a fixed 7 dB when the
-   * target is −16 LUFS.  The DynamicsCompressorNode already applies automatic
-   * makeup gain; the explicit makeupGain node keeps the signal at the correct
-   * drive level for the limiter, while this node provides the remaining gain to
-   * reach targetLUFS.  Subtracting _currentMakeupDb here neutralises the
-   * makeupGain boost so that the combined effect is always constant.
-   */
+  /** @deprecated Use setExportGainStaging — kept for dynamics UI hook. */
+  setStaticMakeupGainDb(_db: number): void { /* no-op */ }
+
+  /** @deprecated Use setExportGainStaging. */
+  setPreviewNormalizeDb(db: number): void {
+    this.setExportGainStaging(this._makeupDb, db)
+  }
+
+  /** Applies the offline-measured normalisation gain before the limiter. */
   private _applyPreviewNormalize(now: number): void {
     if (!this.previewNormalizeGain) return
-    const gainDb = Math.max(-30, Math.min(30,
-      this._lastLimiterTarget - DYNAMICS_WORKING_LEVEL_LUFS - this._currentMakeupDb,
-    ))
+    const gainDb = Math.max(-30, Math.min(30, this._previewNormalizeDb))
     this.previewNormalizeGain.gain.setTargetAtTime(dbToLinear(gainDb), now, 0.08)
   }
 

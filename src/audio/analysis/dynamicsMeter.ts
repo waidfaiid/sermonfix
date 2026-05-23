@@ -114,12 +114,6 @@ function decimateMono(mono: Float32Array, originalSr: number, targetSr = 4000): 
   return { data, sr: originalSr / step }
 }
 
-/**
- * Single compressor stage — RMS power-envelope follower.
- * Uses a squared-amplitude smoother (attack/release in power domain), which closely
- * matches Web Audio DynamicsCompressorNode's RMS detector and avoids the systematic
- * over-compression of a raw peak detector.
- */
 function applyCompressorSw(
   samples: Float32Array,
   sr: number,
@@ -148,6 +142,35 @@ function applyCompressorSw(
       ? atkC * gainLin + (1 - atkC) * targetGain
       : relC * gainLin + (1 - relC) * targetGain
     out[i] = samples[i] * gainLin
+  }
+  return out
+}
+
+/** Two-stage feed-forward compression at full sample rate (no Web Audio auto-makeup). */
+export function compressBufferTwoStage(
+  buffer: AudioBuffer,
+  compressionAmount: number,
+  contentType: ContentType = 'speech',
+): AudioBuffer {
+  const ctx = new OfflineAudioContext(
+    buffer.numberOfChannels,
+    buffer.length,
+    buffer.sampleRate,
+  )
+  const out = ctx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate)
+  const amount = compressionAmount
+  const isMixed = contentType === 'mixed'
+  const s1ratio = isMixed ? 1 + amount * 3 : 1 + amount * 11
+  const s1threshold = isMixed ? -4 : -8
+  const s2threshold = -14 - amount * 18 + (isMixed ? 6 : 0)
+  const s2ratio = 2 + amount * 3
+  const release = 0.25 + amount * 0.55
+
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const input = buffer.getChannelData(ch)
+    let data = applyCompressorSw(input, buffer.sampleRate, s1threshold, s1ratio, 0.003, 0.05)
+    data = applyCompressorSw(data, buffer.sampleRate, s2threshold, s2ratio, 0.025, release)
+    out.copyToChannel(new Float32Array(data), ch)
   }
   return out
 }

@@ -10,6 +10,7 @@ import {
   computeMakeupGainDb,
   DYNAMICS_WORKING_LEVEL_LUFS,
 } from '@/audio/analysis/dynamicsMeter'
+import { computeExportGainStaging } from '@/audio/analysis/previewGainMeter'
 import type { ExportFormat, ExportQuality, SampleRate } from '@/types/processing.types'
 
 const LOSSLESS_EXTS = new Set(['wav', 'flac', 'aiff', 'aif'])
@@ -33,12 +34,26 @@ let cachedBuffer: AudioBuffer | null = null
 /** Pre-chain input gain (dB) matching AudioEngine.inputNormalizeGain. */
 let cachedInputGainDb = 0
 
+async function refreshPreviewGainStaging(): Promise<void> {
+  if (!cachedBuffer) return
+  const state = useProcessingStore.getState()
+  const params = state.getParams()
+  const { makeupDb, gainDb, postCompTrimDb } = await computeExportGainStaging(
+    cachedBuffer,
+    cachedInputGainDb,
+    params,
+    state.limiterTarget,
+  )
+  audioEngine.setExportGainStaging(makeupDb, gainDb, postCompTrimDb)
+}
+
 export function useAudioEngine() {
   const { setIsPlaying, setCurrentTime, setDuration, setIsLoading, setAnalysis, setTrimStart, setTrimEnd } = useAudioStore()
   const activeFile = useFileStore((s) => s.getActiveFile())
   const updateFile = useFileStore((s) => s.updateFile)
   const initialized = useRef(false)
   const compressionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewGainDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     audioEngine.setOnTimeUpdate(setCurrentTime)
@@ -80,7 +95,47 @@ export function useAudioEngine() {
     })
   }, [])
 
-  // Debounced offline computation — updates dynamics display + static makeup gain.
+  // Debounced preview anchor LUFS — drives previewNormalizeGain (export gainDb parity).
+  useEffect(() => {
+    const schedule = () => {
+      if (previewGainDebounceRef.current) clearTimeout(previewGainDebounceRef.current)
+      previewGainDebounceRef.current = setTimeout(() => {
+        refreshPreviewGainStaging().catch((err) => {
+          console.warn('[PreviewGain] export gain staging failed:', err)
+        })
+      }, 300)
+    }
+
+    const unsubscribe = useProcessingStore.subscribe((state, prev) => {
+      if (
+        state.compressionEnabled === prev.compressionEnabled &&
+        state.compressionAmount === prev.compressionAmount &&
+        state.contentType === prev.contentType &&
+        state.eqEnabled === prev.eqEnabled &&
+        state.eqIntensity === prev.eqIntensity &&
+        state.eqBands === prev.eqBands &&
+        state.humEnabled === prev.humEnabled &&
+        state.humAmount === prev.humAmount &&
+        state.humQ === prev.humQ &&
+        state.humAutoMode === prev.humAutoMode &&
+        state.humDetectedFreqs === prev.humDetectedFreqs &&
+        state.exciterEnabled === prev.exciterEnabled &&
+        state.exciterAmount === prev.exciterAmount &&
+        state.exciterMode === prev.exciterMode &&
+        state.desibilanceEnabled === prev.desibilanceEnabled &&
+        state.desibilanceAmount === prev.desibilanceAmount &&
+        state.limiterTarget === prev.limiterTarget
+      ) return
+      schedule()
+    })
+
+    return () => {
+      unsubscribe()
+      if (previewGainDebounceRef.current) clearTimeout(previewGainDebounceRef.current)
+    }
+  }, [])
+
+  // Debounced offline computation — updates dynamics display.
   useEffect(() => {
     const unsubscribe = useProcessingStore.subscribe((state, prev) => {
       if (
@@ -192,6 +247,8 @@ export function useAudioEngine() {
           buffer, compressionEnabled, compressionAmount, cachedInputGainDb, contentType,
         )
         audioEngine.setStaticMakeupGainDb(makeupDb)
+
+        await refreshPreviewGainStaging()
 
         const dynamics = analyzeDynamics(buffer)
         const lufs = audioEngine.loadedLUFS

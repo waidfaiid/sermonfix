@@ -42,9 +42,10 @@ class AudioContextManager {
     for (const path of modules) {
       try {
         await this.ctx.audioWorklet.addModule(path)
-      } catch {
+      } catch (err) {
         // Worklet registration failures are non-fatal; the engine falls back to
         // simpler Web Audio nodes when a preview processor is unavailable.
+        console.warn(`[AudioContextManager] failed to register worklet ${path}:`, err)
       }
     }
   }
