@@ -148,7 +148,7 @@ function WorkspaceView() {
           </p>
         </div>
         <button
-          onClick={() => inputRef.current?.click()}
+          onClick={() => { audioEngine.init().catch(() => {}); inputRef.current?.click() }}
           className="flex items-center gap-1.5 text-xs text-accent border border-accent/40 rounded-pill px-2.5 py-1 hover:bg-accent/10 transition-colors ml-4 shrink-0"
         >
           <Plus size={12} />

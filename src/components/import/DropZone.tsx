@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback } from 'react'
 import { Upload, Music } from 'lucide-react'
 import { useFileStore } from '@/store/useFileStore'
+import { audioEngine } from '@/audio/AudioEngine'
 import { cn } from '@/utils/cn'
 import { Button } from '@/components/ui/Button'
 
@@ -64,7 +65,15 @@ export function DropZone() {
           variant="primary"
           size="lg"
           className="w-full"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => {
+            // iOS Safari requires AudioContext.resume() to be called synchronously
+            // inside a user-gesture handler. Pre-initialising here (before the file
+            // picker opens) ensures the context is running by the time loadFile()
+            // calls decodeAudioData(). Without this the context stays suspended and
+            // decodeAudioData() silently hangs on iPhone.
+            audioEngine.init().catch(() => {})
+            inputRef.current?.click()
+          }}
         >
           Datei auswählen
         </Button>

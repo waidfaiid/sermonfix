@@ -521,22 +521,18 @@ export class AudioEngine {
 
   async loadFile(file: File): Promise<AudioBuffer> {
     if (!this.ctx) {
-      // iOS: wrap init() so a hanging worklet addModule() never freezes the load.
-      // The individual addModule() calls already have per-module timeouts in
-      // AudioContextManager; this outer guard catches any remaining edge-case.
-      await Promise.race([
-        this.init(),
-        new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error('[iOS] AudioEngine.init() timed out after 20 s')), 20_000),
-        ),
-      ]).catch((err) => {
-        console.warn('[AudioEngine] init() timed out or failed; retrying without worklets:', err)
-        // If init() timed out the ctx may still have been created; continue if so.
-      })
-      // Ensure ctx is set even if init() partially succeeded.
-      if (!this.ctx) await this.init()
+      await this.init()
     }
     const ctx = this.ctx!
+
+    // iOS Safari: if AudioContext is still suspended after init() (e.g. because
+    // resume() failed outside a user-gesture context), try once more.  When the
+    // user taps the file-picker button we call audioEngine.init() synchronously
+    // in the click handler so the context should already be running here.
+    if (ctx.state === 'suspended') {
+      await ctx.resume().catch(() => {})
+    }
+
     const arrayBuffer = await file.arrayBuffer()
     const decoded = await decodeAudioDataSafe(ctx, arrayBuffer)
     this.buffer = decoded
