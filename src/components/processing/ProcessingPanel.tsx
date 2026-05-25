@@ -25,15 +25,26 @@ function HumSection() {
   const selecting   = store.humAutoMode && store.humAnalysisState !== 'done'
 
   async function runAnalysis() {
-    const buffer = audioEngine.loadedBuffer
-    if (!buffer || !hasRegion) return
+    if (!hasRegion) return
     store.setHumAnalysisState('analyzing')
     try {
-      const result = await analyzeNoiseProfile(
-        buffer,
-        store.humNoiseProfileStart!,
-        store.humNoiseProfileEnd!,
-      )
+      let regionStart = store.humNoiseProfileStart!
+      let regionEnd = store.humNoiseProfileEnd!
+
+      // In chunked mode the buffer only covers a window of the file.
+      // Ensure the region's chunk is loaded, then translate absolute
+      // times to buffer-relative offsets.
+      if (audioEngine.isChunkedMode) {
+        await audioEngine.ensureChunkAt(regionStart)
+        const offset = audioEngine.chunkStartSec
+        regionStart -= offset
+        regionEnd -= offset
+      }
+
+      const buffer = audioEngine.loadedBuffer
+      if (!buffer) return
+
+      const result = await analyzeNoiseProfile(buffer, regionStart, regionEnd)
       store.setHumDetectedFreqs(result.peaks)
       store.setHumNoiseProfile(result.noiseProfile)
       store.setHumAnalysisState('done')

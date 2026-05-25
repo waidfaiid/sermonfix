@@ -14,7 +14,6 @@
 import { useEffect, useRef } from 'react'
 import { useFileStore } from '@/store/useFileStore'
 import { useProcessingStore } from '@/store/useProcessingStore'
-import { useUIStore } from '@/store/useUIStore'
 import { audioEngine } from '@/audio/AudioEngine'
 import { analyzeLTAS } from '@/audio/analysis/LTASAnalyzer'
 import { computeEQCorrection } from '@/utils/eqMatcher'
@@ -66,7 +65,6 @@ export function useLTASAnalysis() {
     setDesibilanceEnabled,
     setDesibilanceAmount,
   } = useProcessingStore()
-  const addToast = useUIStore((s) => s.addToast)
 
   const eqBandsRef = useRef(eqBands)
   useEffect(() => { eqBandsRef.current = eqBands }, [eqBands])
@@ -132,23 +130,18 @@ export function useLTASAnalysis() {
         setDesibilanceFreq(freq)
 
         if (excess > AUTO_ENABLE_THRESHOLD_DB) {
-          // Scale auto-amount: 3 dB excess → 30%, 6 dB → 60%, capped at 80%
           const autoAmount = Math.min(0.8, (excess - AUTO_ENABLE_THRESHOLD_DB) / 10 + 0.3)
           setDesibilanceEnabled(true)
           setDesibilanceAmount(parseFloat(autoAmount.toFixed(2)))
-          setAnalysisStatus('done')
-          addToast(`Klang-Korrektur & Zischen erkannt (${Math.round(freq / 100) / 10} kHz) ✓`, 'success')
         } else {
           setDesibilanceEnabled(false)
           setDesibilanceAmount(0)
-          setAnalysisStatus('done')
-          addToast('Klang-Korrektur berechnet ✓', 'success')
         }
+        setAnalysisStatus('done')
       } catch (err) {
         if (cancelled) return
         console.error('LTAS analysis failed:', err)
         setAnalysisStatus('error')
-        addToast('Klang-Analyse fehlgeschlagen', 'error')
       }
     }
 

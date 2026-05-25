@@ -60,15 +60,16 @@ export function estimateDurationSec(file: File): number {
 const LOSSLESS_EXTS = new Set(['wav', 'flac', 'aiff', 'aif'])
 
 /**
- * Whether this file needs chunked playback (iOS with files that would exceed
- * the Safari tab memory budget if decoded fully at 48 kHz).
- * Threshold: any file whose 48 kHz mono decode would exceed ~80 MB (≈ 7 min).
+ * Whether this file should use chunked/lazy playback.
+ * On iOS the threshold is lower (80 MB) to stay within Safari's memory budget.
+ * On desktop a higher threshold (200 MB ≈ 17 min) avoids the long blocking
+ * decode of very large files while still decoding shorter tracks directly.
  */
 export function needsChunkedPlayback(file: File): boolean {
-  if (!isIOS()) return false
   const durationSec = estimateDurationSec(file)
   const bytes48k = estimateDecodedBytes(durationSec, AUDIO_CONTEXT_SAMPLE_RATE, 1)
-  return bytes48k > 80 * 1024 * 1024
+  const limit = isIOS() ? 80 * 1024 * 1024 : 200 * 1024 * 1024
+  return bytes48k > limit
 }
 
 /**

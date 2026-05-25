@@ -13,6 +13,34 @@ export interface WaveformPeakData {
 }
 
 /**
+ * Compute waveform peaks from an already-decoded AudioBuffer.
+ * Used for short files that were decoded with WebAudio (no FFmpeg needed).
+ */
+export function computeWaveformPeaksFromBuffer(buffer: AudioBuffer): WaveformPeakData {
+  const data = buffer.getChannelData(0)
+  const duration = buffer.duration
+  const samplesPerPeak = Math.max(1, Math.round(buffer.sampleRate / WAVEFORM_PEAKS_PER_SEC))
+  const peakCount = Math.ceil(data.length / samplesPerPeak)
+  const peaks = new Float32Array(peakCount * 2)
+
+  for (let p = 0; p < peakCount; p++) {
+    const start = p * samplesPerPeak
+    const end = Math.min(data.length, start + samplesPerPeak)
+    let mn = 0
+    let mx = 0
+    for (let i = start; i < end; i++) {
+      const v = data[i]
+      if (v < mn) mn = v
+      if (v > mx) mx = v
+    }
+    peaks[p * 2] = mn
+    peaks[p * 2 + 1] = mx
+  }
+
+  return { peaks, peakCount, duration, peaksPerSec: WAVEFORM_PEAKS_PER_SEC }
+}
+
+/**
  * Decode a file at a low sample rate via FFmpeg and extract a compact peak
  * array suitable for waveform rendering.  The decoded buffer is processed in
  * JS-sized chunks and discarded immediately so peak memory stays low.

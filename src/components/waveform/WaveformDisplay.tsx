@@ -92,65 +92,8 @@ function TrimMarker({ position, onDrag, side, color = 'red' }: TrimMarkerProps) 
   )
 }
 
-/** Render waveform bars for the given audio fraction window [viewStart, viewEnd]. */
-function renderWaveform(
-  canvas: HTMLCanvasElement,
-  buffer: AudioBuffer,
-  viewStart = 0,
-  viewEnd = 1,
-): void {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  const dpr = window.devicePixelRatio || 1
-  const w = canvas.offsetWidth
-  const h = canvas.offsetHeight
-  if (w <= 0 || h <= 0) return
-
-  canvas.width = Math.floor(w * dpr)
-  canvas.height = Math.floor(h * dpr)
-  ctx.scale(dpr, dpr)
-
-  ctx.fillStyle = '#0f172a'
-  ctx.fillRect(0, 0, w, h)
-
-  const data = buffer.getChannelData(0)
-  const totalSamples = data.length
-  const startSample = Math.floor(viewStart * totalSamples)
-  const endSample   = Math.ceil(viewEnd * totalSamples)
-  const visibleCount = Math.max(1, endSample - startSample)
-  const samplesPerPx = visibleCount / w
-  const mid = h / 2
-  const scanStride = Math.max(1, Math.floor(visibleCount / Math.max(w * 16, 2048)))
-
-  // Peak normalisation across visible window (strided for long recordings)
-  let peak = 0.001
-  for (let i = startSample; i < endSample; i += scanStride) {
-    const abs = Math.abs(data[i])
-    if (abs > peak) peak = abs
-  }
-
-  for (let x = 0; x < w; x++) {
-    const s = startSample + Math.floor(x * samplesPerPx)
-    const e = Math.min(endSample - 1, startSample + Math.ceil((x + 1) * samplesPerPx))
-    const innerStride = Math.max(1, Math.floor((e - s + 1) / 128))
-    let mn = 0, mx = 0
-    for (let i = s; i <= e; i += innerStride) {
-      const v = data[i]
-      if (v < mn) mn = v
-      if (v > mx) mx = v
-    }
-    const normMx = mx / peak
-    const normMn = mn / peak
-    const barY = mid - normMx * mid
-    const barH = Math.max(1, (normMx - normMn) * mid)
-    ctx.fillStyle = '#f59e0b'
-    ctx.fillRect(x, barY, 1, barH)
-  }
-}
-
 /**
- * Render waveform from pre-computed peak data (used in chunked mode).
+ * Render waveform from pre-computed peak data.
  * Peaks are interleaved min/max pairs at a fixed rate (peaksPerSec).
  */
 function renderWaveformFromPeaks(
@@ -208,10 +151,9 @@ function renderWaveformFromPeaks(
     const barY = mid - normMx * mid
     const barH = Math.max(1, (normMx - normMn) * mid)
 
-    // Subtle tint for the loaded chunk region
     const audioFrac = viewStart + (x / w) * (viewEnd - viewStart)
-    const inChunk = chunkStartFrac !== undefined && chunkEndFrac !== undefined &&
-      audioFrac >= chunkStartFrac && audioFrac < chunkEndFrac
+    const inChunk = chunkStartFrac === undefined || chunkEndFrac === undefined ||
+      (audioFrac >= chunkStartFrac && audioFrac < chunkEndFrac)
     ctx.fillStyle = inChunk ? '#f59e0b' : '#b47a0a'
     ctx.fillRect(x, barY, 1, barH)
   }
@@ -220,7 +162,6 @@ function renderWaveformFromPeaks(
 export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const bufferRef    = useRef<AudioBuffer | null>(null)
 
   // Zoom state stored in a ref so event handlers always see current values,
   // plus a version counter to trigger React re-renders.
@@ -249,10 +190,29 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
   const setHumNoiseProfileEnd   = useProcessingStore((s) => s.setHumNoiseProfileEnd)
 
   const isAnalyzing = isLoading || analysisStatus === 'running'
+
+  // Smooth fake progress: ramps up quickly at first, then slows down (never reaches 50%).
+  // Resets when loading starts, then blends into the real analysis progress.
+  const [fakeProgress, setFakeProgress] = useState(0)
+  useEffect(() => {
+    if (!isLoading) { setFakeProgress(0); return }
+    setFakeProgress(5)
+    let raf: number
+    const start = performance.now()
+    const tick = () => {
+      const elapsed = (performance.now() - start) / 1000
+      // Asymptotic curve: approaches 45% but never reaches it
+      setFakeProgress(Math.round(45 * (1 - Math.exp(-elapsed / 3))))
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [isLoading])
+
   const loadingProgress = isLoading
-    ? 20
+    ? fakeProgress
     : analysisStatus === 'running'
-    ? Math.round(33 + analysisProgress * 67)
+    ? Math.round(50 + analysisProgress * 50)
     : 100
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -264,24 +224,24 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
   }
 
   function redrawWaveform() {
-    if (!canvasRef.current) return
+    if (!canvasRef.current || !peaksRef.current) return
     const { viewStart, viewEnd } = getView()
-    if (peaksRef.current) {
+    if (audioEngine.isChunkedMode) {
       const dur = peaksRef.current.duration
       const chunkStart = dur > 0 ? audioEngine.chunkStartSec / dur : 0
       const chunkEnd = dur > 0 ? audioEngine.chunkEndSec / dur : 0
       renderWaveformFromPeaks(canvasRef.current, peaksRef.current, viewStart, viewEnd, chunkStart, chunkEnd)
-    } else if (bufferRef.current) {
-      renderWaveform(canvasRef.current, bufferRef.current, viewStart, viewEnd)
+    } else {
+      renderWaveformFromPeaks(canvasRef.current, peaksRef.current, viewStart, viewEnd)
     }
   }
 
-  /** Apply a new zoom level keeping `cursorFrac` (canvas 0-1) anchored in audio space. */
-  function applyZoom(newZoom: number, cursorFrac: number) {
+  /** Apply a new zoom level, always centering the view on the playhead. */
+  function applyZoom(newZoom: number) {
     newZoom = Math.max(1, Math.min(100, newZoom))
-    const { zoom, viewStart } = zoomRef.current
-    const audioCursorPos = viewStart + cursorFrac / zoom
-    const newViewStart = Math.max(0, Math.min(1 - 1 / newZoom, audioCursorPos - cursorFrac / newZoom))
+    const { currentTime: ct, duration: dur } = useAudioStore.getState()
+    const playheadFrac = dur > 0 ? ct / dur : 0.5
+    const newViewStart = Math.max(0, Math.min(1 - 1 / newZoom, playheadFrac - 0.5 / newZoom))
     zoomRef.current = { zoom: newZoom, viewStart: newViewStart }
     redrawWaveform()
     setZoomVersion(v => v + 1)
@@ -358,7 +318,7 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
 
   // ── Pinch-to-zoom + single-finger pan (mobile) ───────────────────────────
 
-  const pinchRef    = useRef<{ dist: number; centerFrac: number } | null>(null)
+  const pinchRef    = useRef<{ dist: number } | null>(null)
   const swipeRef    = useRef<{ startX: number; lastX: number; moved: boolean } | null>(null)
 
   // non-passive touchmove — handles pinch zoom and horizontal swipe pan
@@ -374,7 +334,7 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
         )
         const factor = newDist / pinchRef.current.dist
         const { zoom } = zoomRef.current
-        applyZoom(zoom * factor, pinchRef.current.centerFrac)
+        applyZoom(zoom * factor)
         pinchRef.current.dist = newDist
       } else if (e.touches.length === 1 && swipeRef.current && zoomRef.current.zoom > 1.01) {
         // Horizontal swipe to pan when zoomed in
@@ -398,14 +358,11 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
       swipeRef.current = { startX: e.touches[0].clientX, lastX: e.touches[0].clientX, moved: false }
     } else if (e.touches.length === 2) {
       swipeRef.current = null
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2
       pinchRef.current = {
         dist: Math.hypot(
           e.touches[1].clientX - e.touches[0].clientX,
           e.touches[1].clientY - e.touches[0].clientY,
         ),
-        centerFrac: Math.max(0, Math.min(1, (centerX - rect.left) / rect.width)),
       }
     }
   }
@@ -436,10 +393,9 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
         if (zoom <= 1) return
         panView(e.deltaX / (rect.width * zoom))
       } else {
-        // Vertical scroll → zoom centred on cursor
-        const cursorFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+        // Vertical scroll → zoom centred on playhead
         const factor = e.deltaY < 0 ? 1.25 : 1 / 1.25
-        applyZoom(zoomRef.current.zoom * factor, cursorFrac)
+        applyZoom(zoomRef.current.zoom * factor)
       }
     }
     canvas.addEventListener('wheel', onWheel, { passive: false })
@@ -452,27 +408,25 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
     if (duration <= 0) return
     if (!canvasRef.current) return
 
-    // Reset zoom when a new file is loaded
     zoomRef.current = { zoom: 1, viewStart: 0 }
     setZoomVersion(0)
 
-    // In chunked mode, use the peak data for the waveform
     const peaks = audioEngine.waveformPeaks
-    if (peaks) {
-      peaksRef.current = peaks
-      bufferRef.current = null
-      renderWaveformFromPeaks(canvasRef.current, peaks)
+    if (!peaks) return
+    peaksRef.current = peaks
+
+    if (audioEngine.isChunkedMode) {
+      const dur = peaks.duration
+      const chunkStart = dur > 0 ? audioEngine.chunkStartSec / dur : 0
+      const chunkEnd = dur > 0 ? audioEngine.chunkEndSec / dur : 0
+      renderWaveformFromPeaks(canvasRef.current, peaks, 0, 1, chunkStart, chunkEnd)
     } else {
-      const buf = audioEngine.loadedBuffer
-      if (!buf) return
-      bufferRef.current = buf
-      peaksRef.current = null
-      renderWaveform(canvasRef.current, buf)
+      renderWaveformFromPeaks(canvasRef.current, peaks)
     }
   }, [duration, file])
 
   useEffect(() => {
-    if (!canvasRef.current || !bufferRef.current) return
+    if (!canvasRef.current) return
     const obs = new ResizeObserver(() => redrawWaveform())
     obs.observe(canvasRef.current)
     return () => obs.disconnect()
@@ -651,14 +605,11 @@ export function WaveformDisplay({ file, collapseProgress = 0 }: WaveformDisplayP
         {isAnalyzing && (
           <div className="absolute inset-0 flex flex-col justify-center gap-2 rounded-lg bg-background/95 px-4">
             <p className="text-xs text-center text-text-secondary">
-              {isLoading ? 'Track wird geladen …' : 'Wird analysiert und eingestellt …'}
+              {isLoading ? 'Track wird geladen …' : 'Wird eingestellt …'}
             </p>
             <div className="w-full h-1.5 rounded-full bg-card-border overflow-hidden">
               <div
-                className={cn(
-                  'h-full rounded-full bg-accent transition-all duration-500',
-                  isLoading && 'animate-pulse',
-                )}
+                className="h-full rounded-full bg-accent transition-[width] duration-300 ease-out"
                 style={{ width: `${loadingProgress}%` }}
               />
             </div>

@@ -5,7 +5,7 @@ import { LUFSAnalyzer } from './analysis/LUFSAnalyzer'
 import { createPinkNoiseBuffer, measureRmsDbfs } from './analysis/pinkNoise'
 import { DYNAMICS_WORKING_LEVEL_LUFS } from './analysis/dynamicsMeter'
 import { decodeAudioFile, decodeChunk, releaseFfmpegInput } from './decodeAudioFile'
-import { computeWaveformPeaks, type WaveformPeakData } from './WaveformPeaks'
+import { computeWaveformPeaks, computeWaveformPeaksFromBuffer, type WaveformPeakData } from './WaveformPeaks'
 import {
   LUFS_ANALYSIS_MAX_SEC,
   CHUNK_DURATION_SEC,
@@ -552,6 +552,7 @@ export class AudioEngine {
 
     const decoded = await decodeAudioFile(ctx, file, { sampleRate: ctx.sampleRate })
     this.buffer = decoded
+    this._waveformPeaks = computeWaveformPeaksFromBuffer(decoded)
     this.sourceLUFS = analyzeIntegratedLoudness(this.lufsAnalyzer, decoded)
     this._resetGainState()
 
