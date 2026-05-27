@@ -1,10 +1,28 @@
 import type { ReactNode } from 'react'
-import { AudioLines, Lock, Zap, Headphones, Church, Podcast, Mic, Radio, Download } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  AudioLines,
+  Lock,
+  Zap,
+  Headphones,
+  Church,
+  Podcast,
+  Mic,
+  Radio,
+  Download,
+  SlidersHorizontal,
+  Activity,
+  Waves,
+  Volume2,
+  Sparkles,
+  Wand2,
+  Layers,
+} from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useInView } from '@/hooks/useInView'
 import { useAudioFilePicker } from '@/hooks/useAudioFilePicker'
 import { FileUploadArea } from './FileUploadArea'
-import { FeatureCarousel, HeroWaveform } from './FeatureCarousel'
+import { HeroWaveform } from './FeatureCarousel'
 
 const USE_CASES = [
   { icon: Mic, label: 'Predigten & Vorträge', desc: 'Klarere Stimme für Podcast & Kirche' },
@@ -12,11 +30,55 @@ const USE_CASES = [
   { icon: Download, label: 'Schnell exportieren', desc: 'Ohne DAW — direkt im Browser' },
 ] as const
 
-const BENEFITS = [
-  { icon: Lock, text: 'Kein Upload — Audio bleibt auf deinem Gerät' },
+/** Vorschlagsliste — Reihenfolge & Auswahl nach deinem Feedback anpassbar. */
+const BENEFITS: ReadonlyArray<{ icon: LucideIcon; text: string }> = [
   { icon: Zap, text: 'Sofort starten, keine Anmeldung' },
   { icon: Headphones, text: 'A/B-Hören: Original vs. bearbeitet' },
-] as const
+  {
+    icon: SlidersHorizontal,
+    text: 'Klang wird analysiert — EQ sinnvoll voreingestellt, du feinjustierst nur noch',
+  },
+  {
+    icon: Activity,
+    text: 'Laut-Leise wird gemessen — Kompression passend voreingestellt',
+  },
+  {
+    icon: Waves,
+    text: 'Starke Rauschunterdrückung, die natürlich klingt — kein „unter Wasser“-Effekt',
+  },
+  {
+    icon: Radio,
+    text: 'Brummen (Netz, Raum) automatisch erkennen und reduzieren',
+  },
+  {
+    icon: Wand2,
+    text: 'Zischlaute werden erkannt und sanft abgemildert (De-Esser)',
+  },
+  {
+    icon: Volume2,
+    text: 'Export auf konkurrenzfähige Lautstärke — Podcast- & Plattform-tauglich',
+  },
+  {
+    icon: Sparkles,
+    text: 'Stimme wirkt näher und verständlicher — Präsenz & Wärme per Schieberegler',
+  },
+  {
+    icon: Headphones,
+    text: 'Jede Änderung sofort anhören — kein Rätselraten, kein Studio nötig',
+  },
+  {
+    icon: Mic,
+    text: 'Für Reden, Predigten & Podcasts optimiert — nicht für Musik-Produktion',
+  },
+  {
+    icon: Layers,
+    text: 'Mehrere Dateien nacheinander bearbeiten und exportieren',
+  },
+  {
+    icon: Download,
+    text: 'MP3, WAV, FLAC & mehr — fertig zum Teilen, ohne DAW',
+  },
+]
 
 function RevealSection({
   children,
@@ -84,32 +146,22 @@ export function ImportLanding() {
           <div className="w-full mt-2">
             <FileUploadArea variant="landing" picker={picker} />
           </div>
+          <ul className="w-full mt-3 space-y-1.5 text-left">
+            {BENEFITS.map(({ icon: Icon, text }) => (
+              <li
+                key={text}
+                className="flex items-start gap-2.5 px-3 py-2 rounded-lg bg-card/50 border border-card-border/70"
+              >
+                <Icon className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" aria-hidden />
+                <span className="text-[11px] text-text-primary leading-snug">{text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </header>
 
       <div className="px-4 flex flex-col gap-8 pb-8">
-        <RevealSection>
-          <FeatureCarousel />
-        </RevealSection>
-
         <RevealSection delay={80}>
-          <h3 className="text-[11px] font-tech uppercase tracking-widest text-text-secondary mb-3">
-            Vorteile
-          </h3>
-          <ul className="space-y-2">
-            {BENEFITS.map(({ icon: Icon, text }) => (
-              <li
-                key={text}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-card/60 border border-card-border/80"
-              >
-                <Icon className="w-4 h-4 text-accent shrink-0" aria-hidden />
-                <span className="text-xs text-text-primary leading-snug">{text}</span>
-              </li>
-            ))}
-          </ul>
-        </RevealSection>
-
-        <RevealSection delay={120}>
           <h3 className="text-[11px] font-tech uppercase tracking-widest text-text-secondary mb-3">
             Ideal für
           </h3>
