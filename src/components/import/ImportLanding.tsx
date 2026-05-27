@@ -123,8 +123,8 @@ export function ImportLanding() {
           aria-hidden
         />
         <div className="relative flex flex-col items-center text-center gap-3">
-          <SpeechFixLogo className="mb-0.5" />
-          <h2 className="text-xl font-bold tracking-tight text-white leading-tight -mt-1">
+          <SpeechFixLogo className="mb-1 py-1" />
+          <h2 className="text-xl font-bold tracking-tight text-white leading-tight">
             Sprach-Audio
             <span className="text-accent"> verbessern</span>
           </h2>
