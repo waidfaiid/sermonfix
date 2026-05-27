@@ -155,7 +155,7 @@ export default function App() {
 
   return (
     <Layout>
-      {hasFiles ? <WorkspaceView /> : <ImportLanding />}
+      {hasFiles ? <WorkspaceView /> : <DropZone />}
       <EQProPanel />
       <ExportProgress />
       <ToastContainer />

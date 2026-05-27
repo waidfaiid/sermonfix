@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AudioLines, Lock, Zap, Headphones, Church, Podcast, Mic, Radio, Download, Upload } from 'lucide-react'
 import { cn } from '@/utils/cn'
@@ -19,8 +19,6 @@ const BENEFITS = [
   { icon: Zap, text: 'Sofort starten, keine Anmeldung' },
   { icon: Headphones, text: 'A/B-Hören: Original vs. bearbeitet' },
 ] as const
-
-const SCROLL_END_THRESHOLD_PX = 100
 
 function RevealSection({
   children,
@@ -54,41 +52,26 @@ export function ImportLanding() {
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
   const [uploadZoneVisible, setUploadZoneVisible] = useState(false)
 
-  const updateUploadVisibility = useCallback(() => {
-    const scroller = scrollEl
-    const upload = uploadSectionRef.current
-    if (!scroller || !upload) {
-      setUploadZoneVisible(false)
-      return
-    }
-
-    const scrollerRect = scroller.getBoundingClientRect()
-    const uploadRect = upload.getBoundingClientRect()
-    const visible =
-      uploadRect.top < scrollerRect.bottom - 48 &&
-      uploadRect.bottom > scrollerRect.top + 48
-
-    const scrolledToEnd =
-      scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - SCROLL_END_THRESHOLD_PX
-
-    setUploadZoneVisible(visible || scrolledToEnd)
-  }, [scrollEl])
-
   useEffect(() => {
-    const scroller = scrollEl
-    if (!scroller) return
+    const root = scrollEl
+    const target = uploadSectionRef.current
+    if (!root || !target) return
 
-    updateUploadVisibility()
-    scroller.addEventListener('scroll', updateUploadVisibility, { passive: true })
-    const ro = new ResizeObserver(updateUploadVisibility)
-    ro.observe(scroller)
-    if (uploadSectionRef.current) ro.observe(uploadSectionRef.current)
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setUploadZoneVisible(entry.isIntersecting && entry.intersectionRatio >= 0.15)
+      },
+      {
+        root,
+        threshold: [0, 0.15, 0.35],
+        // Upload zählt erst, wenn er im unteren Sichtbereich ankommt
+        rootMargin: '0px 0px -96px 0px',
+      },
+    )
 
-    return () => {
-      scroller.removeEventListener('scroll', updateUploadVisibility)
-      ro.disconnect()
-    }
-  }, [scrollEl, updateUploadVisibility])
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [scrollEl])
 
   const showStickyCta = !uploadZoneVisible
 
@@ -212,30 +195,24 @@ export function ImportLanding() {
         </div>
       </div>
 
-      <div
-        className={cn(
-          'fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 px-4 pt-4 safe-bottom pointer-events-none transition-all duration-300',
-          'bg-gradient-to-t from-background from-40% via-background/95 to-transparent',
-          showStickyCta
-            ? 'opacity-100 translate-y-0'
-            : 'opacity-0 translate-y-4',
-        )}
-        aria-hidden={!showStickyCta}
-      >
-        <Button
-          variant="primary"
-          size="lg"
+      {showStickyCta && (
+        <div
           className={cn(
-            'w-full shadow-lg shadow-accent/25 pointer-events-auto',
-            !showStickyCta && 'pointer-events-none',
+            'fixed bottom-0 left-1/2 z-[60] w-full max-w-md -translate-x-1/2 px-4 pt-4 pb-4 safe-bottom',
+            'bg-gradient-to-t from-background from-50% via-background/95 to-transparent',
           )}
-          onClick={openPicker}
-          tabIndex={showStickyCta ? 0 : -1}
         >
-          <Upload className="w-5 h-5" aria-hidden />
-          Jetzt starten
-        </Button>
-      </div>
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full shadow-lg shadow-accent/25"
+            onClick={openPicker}
+          >
+            <Upload className="w-5 h-5" aria-hidden />
+            Jetzt starten
+          </Button>
+        </div>
+      )}
     </article>
   )
 }
