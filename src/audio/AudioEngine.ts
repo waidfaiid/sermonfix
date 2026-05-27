@@ -732,6 +732,10 @@ export class AudioEngine {
   play(startFrom?: number): void {
     if (!this.ctx || !this.buffer) return
 
+    // The play button is a user gesture — use it as a second-chance unlock in
+    // case the file-picker gesture expired before the unlock could fire.
+    audioContextManager.unlockAudioSession()
+
     // On iOS (and some Android browsers) the AudioContext is suspended whenever
     // the page is backgrounded — including while the native file-picker is open.
     // resume() must be initiated synchronously inside a user-gesture handler.
@@ -741,12 +745,24 @@ export class AudioEngine {
     if (this.ctx.state === 'suspended') {
       if (this._resumePending) return   // already waiting on a resume
       this._resumePending = true
+
+      // Guard against ctx.resume() hanging indefinitely on iOS (seen in the wild).
+      // After 3 s, clear the flag so a subsequent tap can retry.
+      const resumeTimer = setTimeout(() => {
+        if (this._resumePending) {
+          this._resumePending = false
+          console.warn('[AudioEngine] ctx.resume() timed out in play(); tap play again')
+        }
+      }, 3000)
+
       this.ctx.resume().then(() => {
+        clearTimeout(resumeTimer)
         if (this._resumePending && this.buffer) {
           this._resumePending = false
           this.play(startFrom)
         }
       }).catch((err) => {
+        clearTimeout(resumeTimer)
         this._resumePending = false
         console.warn('[AudioEngine] ctx.resume() in play() failed:', err)
       })

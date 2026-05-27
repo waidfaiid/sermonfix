@@ -38,6 +38,12 @@ class AudioContextManager {
   }
 
   async initOnUserGesture(): Promise<AudioContext> {
+    // ── Step 1: fire the iOS audio-session unlock synchronously ───────────────
+    // This MUST be called before any `await` so it runs in the same microtask
+    // as the original user-gesture event.  On iOS, calling audio.play() more
+    // than one microtask hop after a tap is enough for Safari to deny it.
+    this.unlockAudioSession()
+
     if (this.ctx && this.ctx.state !== 'closed') {
       if (this.ctx.state === 'suspended') {
         // iOS Safari can hang on resume() when called outside a synchronous user-gesture
@@ -60,10 +66,6 @@ class AudioContextManager {
         console.warn('[AudioContextManager] initial resume() timed out or failed:', err)
       })
     }
-
-    // Must happen before statechange listener and worklet registration so that
-    // the audio session is in the correct state when first audio nodes fire.
-    await this._unlockAudioSession()
 
     this.ctx.addEventListener('statechange', () => {
       this.listeners.forEach((l) => l(this.ctx!.state))
@@ -89,50 +91,65 @@ class AudioContextManager {
 
   /**
    * Switches the iOS audio session from the "ringer" route to the
-   * "media playback" route by playing a single silent frame through an
-   * HTMLAudioElement backed by a MediaStreamDestinationNode.
+   * "media playback" route by playing a 1-sample silent WAV through an
+   * HTMLAudioElement.
    *
    * Without this, Web Audio output on iOS:
    *   - is muted by the hardware silent-mode (mute) switch regardless of
-   *     the software volume level
+   *     software volume level
    *   - is controlled by the ringer volume buttons, not the media volume
    *   - may route to the earpiece instead of the loudspeaker
    *
-   * After this call, all three problems are resolved for the lifetime of
-   * the audio context.  The method is a no-op on non-iOS browsers (safe
-   * to call everywhere — MediaStreamDestinationNode is universally supported).
+   * CRITICAL: this method is SYNCHRONOUS and MUST be called before any
+   * `await` in the user-gesture call chain.  iOS only grants `audio.play()`
+   * permission if it is called within the same microtask as the user tap.
+   * Calling it after even one `await ctx.resume()` is enough for Safari to
+   * deny it with NotAllowedError.
+   *
+   * It is safe to call on non-iOS browsers; the audio element plays silence
+   * and is removed within 500 ms.  If `audio.play()` rejects (e.g. gesture
+   * epoch expired), `_sessionUnlocked` is reset so the next gesture retries.
    */
-  private async _unlockAudioSession(): Promise<void> {
-    if (!this.ctx || this._sessionUnlocked) return
+  unlockAudioSession(): void {
+    if (this._sessionUnlocked) return
+    this._sessionUnlocked = true   // optimistic — reset on rejection
     try {
-      const dest = this.ctx.createMediaStreamDestination()
+      // Build a minimal 46-byte WAV: 44-byte header + 1 sample of silence.
+      const wav = new Uint8Array(46)
+      const view = new DataView(wav.buffer)
+      const str = (off: number, s: string) => {
+        for (let i = 0; i < s.length; i++) wav[off + i] = s.charCodeAt(i)
+      }
+      str(0, 'RIFF'); view.setUint32(4, 38, true);   str(8, 'WAVE')
+      str(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true)
+      view.setUint16(22, 1, true)    // mono
+      view.setUint32(24, 22050, true) // sample rate
+      view.setUint32(28, 44100, true) // byte rate
+      view.setUint16(32, 2, true)    // block align
+      view.setUint16(34, 16, true)   // bits per sample
+      str(36, 'data'); view.setUint32(40, 2, true)   // 1 sample
+      // bytes 44-45 are 0 already (silence)
+
+      const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }))
       const audioEl = document.createElement('audio')
-      audioEl.srcObject = dest.stream
-      // playsinline prevents iOS from opening the system media player.
+      audioEl.src = url
       audioEl.setAttribute('playsinline', '')
-      // The element must NOT be muted — a muted element does not trigger
-      // the iOS audio session category switch.
+      // Must NOT be muted — a muted element does not trigger the iOS session switch.
       audioEl.muted = false
-
-      // Feed exactly one sample of silence so the element has something to
-      // decode; this is enough to register the media-playback session.
-      const silentBuf = this.ctx.createBuffer(1, 1, this.ctx.sampleRate)
-      const src = this.ctx.createBufferSource()
-      src.buffer = silentBuf
-      src.connect(dest)
-
-      // The element must be in the DOM before play() is called on iOS.
       document.body.appendChild(audioEl)
-      await audioEl.play()
-      src.start()
 
-      this._sessionUnlocked = true
-
-      // Detach the throwaway element once the unlock frame has played.
-      setTimeout(() => {
-        try { audioEl.pause(); audioEl.remove() } catch { /* */ }
-      }, 500)
+      audioEl.play().then(() => {
+        URL.revokeObjectURL(url)
+        setTimeout(() => { try { audioEl.pause(); audioEl.remove() } catch { /* */ } }, 500)
+      }).catch(() => {
+        // play() was denied — gesture epoch had already expired.  Reset so the
+        // next user tap (e.g. the play button) gets another chance to unlock.
+        this._sessionUnlocked = false
+        URL.revokeObjectURL(url)
+        try { audioEl.remove() } catch { /* */ }
+      })
     } catch (err) {
+      this._sessionUnlocked = false
       console.warn('[AudioContextManager] audio session unlock failed:', err)
     }
   }
