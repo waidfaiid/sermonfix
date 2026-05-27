@@ -11,12 +11,10 @@ import {
   Radio,
   Download,
   SlidersHorizontal,
-  Activity,
-  Waves,
-  Volume2,
+  Upload,
+  CheckCircle2,
   Sparkles,
-  Scissors,
-  Layers,
+  ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useInView } from '@/hooks/useInView'
@@ -31,52 +29,61 @@ const USE_CASES = [
 ] as const
 
 const BENEFITS: ReadonlyArray<{ icon: LucideIcon; text: string }> = [
-  { icon: Zap, text: 'Einfach öffnen und loslegen — kein Konto, kein Extra-Programm' },
-  {
-    icon: Headphones,
-    text: 'Vorher und nachher anhören — du merkst sofort: Das klingt besser',
-  },
-  {
-    icon: SlidersHorizontal,
-    text: 'Klingt von Anfang an angenehmer und klarer — auch ohne Audio-Wissen',
-  },
-  {
-    icon: Activity,
-    text: 'Mal zu leise, mal zu laut? Wird gleichmäßiger — die Stimme kommt gut rüber',
-  },
-  {
-    icon: Waves,
-    text: 'Störendes Rauschen und Brummen werden leiser — natürlich, nicht „verfremdet“',
-  },
-  {
-    icon: Mic,
-    text: 'Unangenehme „S“-Laute werden weicher — angenehmer zum Zuhören',
-  },
-  {
-    icon: Volume2,
-    text: 'Am Ende schön laut — vergleichbar mit anderen Podcasts und Videos',
-  },
-  {
-    icon: Scissors,
-    text: 'Lange Stille am Anfang oder Ende abschneiden — nur der Inhalt bleibt',
-  },
-  {
-    icon: Sparkles,
-    text: 'Deine Stimme wirkt näher und verständlicher — bei Bedarf mit einem Regler nachhelfen',
-  },
-  {
-    icon: Headphones,
-    text: 'Du hörst jede Änderung sofort — einfach drehen, bis es für dich passt',
-  },
-  {
-    icon: Layers,
-    text: 'Mehrere Aufnahmen hintereinander — ohne jedes Mal von vorn',
-  },
-  {
-    icon: Download,
-    text: 'Speichern und weitergeben — fertig zum Hochladen oder Verschicken',
-  },
+  { icon: Zap, text: 'Sofort starten, keine Anmeldung' },
+  { icon: Sparkles, text: 'Keine Vorkenntnisse nötig' },
+  { icon: SlidersHorizontal, text: 'Jeder Effekt intuitiv mit einem Regler einstellbar' },
 ]
+
+const WORKFLOW_STEPS = [
+  { icon: Upload, label: 'Importieren', hint: 'Aufnahme rein' },
+  { icon: Headphones, label: 'Hören', hint: 'Unterschied merken' },
+  { icon: SlidersHorizontal, label: 'Regler', hint: 'justieren' },
+  { icon: Download, label: 'Exportieren', hint: 'speichern' },
+  { icon: CheckCircle2, label: 'Fertig', hint: 'teilen' },
+] as const
+
+function WorkflowJourney() {
+  return (
+    <div
+      className="w-full mt-2 rounded-xl border border-accent/25 bg-gradient-to-br from-accent/8 via-card/70 to-card/40 p-3.5 shadow-inner shadow-black/20"
+      aria-label="Ablauf in fünf Schritten"
+    >
+      <p className="text-[11px] font-semibold text-white text-center leading-snug">
+        Vom Mitschnitt zur fertigen Datei
+      </p>
+      <p className="text-[10px] text-text-secondary text-center mt-0.5 mb-3">
+        Fünf Schritte — ohne Umwege
+      </p>
+      <ol className="flex items-start justify-between gap-0">
+        {WORKFLOW_STEPS.map((step, index) => {
+          const Icon = step.icon
+          const isLast = index === WORKFLOW_STEPS.length - 1
+          return (
+            <li key={step.label} className="flex flex-1 min-w-0 items-start">
+              <div className="flex flex-col items-center flex-1 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-background/90 border border-accent/35 flex items-center justify-center shadow-sm shadow-black/25">
+                  <Icon className="w-3.5 h-3.5 text-accent" aria-hidden />
+                </div>
+                <span className="mt-1.5 text-[9px] font-semibold text-white text-center leading-tight px-0.5">
+                  {step.label}
+                </span>
+                <span className="text-[8px] text-text-secondary text-center leading-tight px-0.5">
+                  {step.hint}
+                </span>
+              </div>
+              {!isLast && (
+                <ChevronRight
+                  className="w-3 h-3 text-accent/50 shrink-0 mt-2.5 -mx-0.5"
+                  aria-hidden
+                />
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
 
 function RevealSection({
   children,
@@ -155,6 +162,7 @@ export function ImportLanding() {
               </li>
             ))}
           </ul>
+          <WorkflowJourney />
         </div>
       </header>
 
