@@ -155,11 +155,11 @@ export default function App() {
 
   return (
     <Layout>
-      {hasFiles ? <WorkspaceView /> : <DropZone />}
+      {hasFiles ? <WorkspaceView /> : <ImportLanding />}
       <EQProPanel />
       <ExportProgress />
       <ToastContainer />
-      <InstallPrompt />
+      {hasFiles && <InstallPrompt />}
     </Layout>
   )
 }
