@@ -1,0 +1,677 @@
+================================================================================
+          SERMONFIX / SPEECHFIX — DAS ULTIMATIVE AUDIO-MASTERCLASS-HANDBUCH
+                            „Erklärung für Anfänger“
+================================================================================
+
+Willkommen an Bord! Dieses Dokument wurde speziell für dich geschrieben. Egal,
+ob du gerade erst mit dem Programmieren anfängst, dich für Progressive Web Apps
+(PWAs) interessierst oder als Tonschaffender (Live-Mischer, Soundtechniker,
+Predigt-Aufbereiter) verstehen willst, wie hochprofessionelle Audiobearbeitung
+direkt und ohne Server im Browser stattfindet.
+
+Wir gehen hier einen gemeinsamen Weg: Vom ganz Groben ins ganz Feine. Dieses
+Dokument ist so formuliert, dass du es dir hervorragend kapitelweise vorlesen
+lassen kannst (Text-to-Speech-freundlich). Wir benutzen verständliche Metaphern
+aus der Tontechnik und erklären jede Zeile Code-Logik so, dass du danach die
+Dateien selbstständig öffnen, lesen und erweitern kannst.
+
+Schnapp dir einen Kaffee oder Tee, mach es dir bequem und lass uns in die
+faszinierende Welt der Web-Audio-Programmierung eintauchen!
+
+---
+
+   INHALTSVERZEICHNIS
+   1. Das Grobkonzept: Was ist SpeechFix und welches Problem löst es?
+   2. Die Werkzeugkiste: Frameworks, Bibliotheken und das „Warum“
+   3. Architektur: Vor- und Nachteile dieses Ansatzes
+   4. Die Landkarte des Projekts: Ordnerstruktur und jede einzelne Datei
+   5. Die drei magischen Phasen beim Laden einer Audiodatei
+   6. DSP-Tiefenbohrung: Die Audio-Effekte im Detail erklärt
+   7. Die Export-Maschine: FFmpeg und das iOS-Speicher-Wunder
+   8. Baustellen & Risiken: Die Grenzen dieser Architektur
+   9. Die Perspektive des Audio-Engineers: Was mir als Profi noch fehlt
+   10. Konkrete Optimierungsvorschläge für die Zukunft
+
+---
+
+================================================================================
+1. DAS GROBKONZEPT: WAS IST SPEECHFIX UND WELCHES PROBLEM LÖST ES?
+================================================================================
+
+Stell dir folgende Situation vor: In einer Gemeinde, einem Vortragssaal oder
+bei einer Konferenz wird eine Rede aufgezeichnet. Das Ergebnis ist oft ernüchternd:
+- Es brummt im Hintergrund (Netzbrummen von 50 oder 60 Hertz).
+- Es rauscht (Lüfter der Klimaanlage, Windgeräusche).
+- Die Stimme klingt mal zu laut, mal zu leise (mangelnde Dynamik-Kontrolle).
+- Es zischt bei scharfen S-Lauten (Sibilanz).
+- Dem Sound fehlt die Wärme oder Brillanz, um sich auf Kopfhörern gut anzuhören.
+
+Bisher musste man diese Aufnahme in eine teure Audiosoftware (eine sogenannte
+DAW wie Pro Tools, Logic oder Reaper) laden, Plugins einstellen, exportieren
+und hochladen. Oder man nutzte Cloud-Dienste, bei denen jede Minute Geld kostet,
+die Daten auf fremde Server geladen werden müssen und die Privatsphäre flöten geht.
+
+SpeechFix löst all diese Probleme auf revolutionäre Weise:
+Es ist eine Progressive Web App (PWA), die komplett lokal in deinem Browser läuft.
+Du ziehst eine Audiodatei per Drag-and-Drop hinein, die App analysiert sie
+vollautomatisch und korrigiert Brummen, Rauschen, Frequenzfehler und Pegelschwankungen
+in Echtzeit. Wenn du zufrieden bist, drückst du auf Export und eine perfekt
+gemasterte Datei wird heruntergeladen.
+
+Das Geniale: Es wird kein einziger Byte deiner Audiodatei auf einen Server
+übertragen. Alles passiert auf deinem eigenen Prozessor (CPU). Das kostet den
+Betreiber der Website keinen Cent für Server-Infrastruktur und ist absolut datenschutzkonform.
+
+---
+
+================================================================================
+2. DIE WERKZEUGKISTE: FRAMEWORKS, BIBLIOTHEKEN UND DAS „WARUM“
+================================================================================
+
+Damit diese App so schnell, reibungslos und hübsch läuft, arbeitet im Hintergrund
+ein perfekt abgestimmtes Orchester aus modernen Web-Technologien. Hier sind
+unsere Hauptdarsteller:
+
+* Vite (Der Bauleiter):
+  Vite ist ein extrem schnelles Werkzeug, um Webprojekte zu starten und für die
+  Veröffentlichung zusammenzubauen (ein sogenannter „Bundler“). Früher dauerte
+  es Sekunden oder Minuten, bis Code-Änderungen im Browser sichtbar waren. Vite
+  erledigt das dank modernster Technologie (ES-Modules und HMR) im Bruchteil
+  einer Millisekunde.
+
+* React 19 (Die interaktive Oberfläche):
+  React ist ein Framework von Meta (Facebook), mit dem man Benutzeroberflächen
+  aus kleinen, wiederverwendbaren Bausteinen („Komponenten“) zusammensetzt. Ändert
+  sich ein Wert (z. B. ein Slider für den Bass-Boost), sorgt React blitzschnell
+  dafür, dass genau dieser Teil des Bildschirms neu gezeichnet wird, ohne die
+  ganze Seite neu zu laden.
+
+* Zustand (Das globale Gedächtnis):
+  In einer komplexen App müssen viele Komponenten miteinander sprechen. Der
+  Play-Button muss wissen, ob eine Datei geladen ist; der Equalizer-Graph muss
+  die Frequenzbänder kennen. Zustand ist ein minimalistisches, extrem schnelles
+  Zustandsmanagement (State-Management). Es fungiert als das „globale Gehirn“ der
+  App, auf das jede Komponente zugreifen kann.
+
+* Tailwind CSS (Der Blitz-Stylist):
+  Anstatt riesige, unübersichtliche CSS-Dateien zu schreiben, nutzt SpeechFix
+  Tailwind CSS. Hierbei schreibt man direkt in die HTML-Elemente kleine,
+  vordefinierte Hilfsklassen (z. B. `bg-slate-900 text-white p-4 rounded-lg`). Das
+  macht das Design extrem wartbar und sorgt dafür, dass kein unnötiges Design-Gewicht
+  heruntergeladen werden muss.
+
+* Radix UI (Die barrierefreie Basis):
+  Für komplexe UI-Elemente wie Schieberegler (Slider), Dialog-Fenster oder Tabs
+  nutzen wir Radix-Primitives. Das sind ungestylte, aber hochgradig barrierefreie
+  und robuste Funktionsgerüste. Sie sorgen dafür, dass sich die App auf Smartphones,
+  mit der Tastatur oder für blinde Menschen mit Screenreadern perfekt bedienen lässt.
+  Das visuelle Kleid stülpen wir dann mit Tailwind CSS darüber.
+
+* Web Audio API (Das Mischpult im Browser):
+  Die Web Audio API ist eine im Browser eingebaute, extrem mächtige Sound-Engine.
+  Mit ihr können wir virtuell Kabel ziehen: Wir nehmen ein Tonsignal, leiten es
+  durch einen virtuellen Equalizer, dann durch einen Kompressor und schließlich
+  zu den Lautsprechern. Das Ganze passiert auf einer eigenen, hochpriorisierten
+  Systemebene für absolut knack- und verzögerungsfreie Audiowiedergabe.
+
+* Audio Worklets (Die Spezial-Prozessoren):
+  Die normale Web Audio API hat Grenzen bei Spezialeffekten. Hier kommen Audio
+  Worklets ins Spiel: Sie erlauben es uns, eigenen Code in einer separaten
+  Hintergrund-Spur (einem eigenen Thread) laufen zu lassen, der Sample für Sample
+  manipulieren kann. In SpeechFix nutzen wir sie für den De-Esser und den
+  Echtzeit-Pegelbegrenzer (Limiter).
+
+* WebAssembly / WASM (Die native Highspeed-Schnittstelle):
+  JavaScript ist toll für Webseiten, aber zu langsam für komplexe mathematische
+  Berechnungen wie künstliche Intelligenz oder neuronale Rauschunterdrückung.
+  WebAssembly (WASM) erlaubt es uns, rasend schnellen Code, der in Sprachen wie C,
+  C++ oder Rust geschrieben wurde, direkt im Browser auszuführen. Dadurch läuft
+  unsere Rauschunterdrückung (RNNoise) mit nativer Desktop-Geschwindigkeit!
+
+* FFmpeg WASM (Das Schweizer Taschenmesser der Audio-Konvertierung):
+  FFmpeg ist der unangefochtene weltweite Standard für Audio- und Videokonvertierung.
+  Wir haben FFmpeg als WebAssembly-Paket in die App integriert. Dadurch können
+  wir jede beliebige Audiodatei (MP3, AAC, M4A, OGG, WAV, FLAC) importieren und am
+  Ende im exakt gewünschten Format und mit der perfekten Lautheit exportieren –
+  alles direkt auf deinem Gerät!
+
+---
+
+================================================================================
+3. ARCHITEKTUR: VOR- UND NACHTEILE DIESES ANSATZES
+================================================================================
+
+Bevor wir uns die Dateien anschauen, werfen wir den Blick eines Chefarchitekten
+auf das System. Kein System ist perfekt; jedes Design ist ein Kompromiss (Trade-off).
+
+VORTEILE:
+1. Keine Serverkosten: Da alle CPU-Last auf den Rechnern der Benutzer liegt,
+   kann diese App von Millionen von Menschen genutzt werden, ohne dass der
+   Betreiber hohe Server- oder Cloud-Rechnungen zahlen muss.
+2. Absolute Privatsphäre: Da keine Audiodaten ins Internet hochgeladen werden,
+   können auch hochsensible Aufnahmen (vertrauliche Sitzungen, private Gespräche)
+   völlig bedenkenlos bearbeitet werden.
+3. Offline-Fähigkeit (PWA): Einmal geladen, funktioniert die App dank Service-Worker
+   komplett ohne Internetverbindung – ideal für den Einsatz in abgelegenen
+   Gemeindehäusern oder auf Reisen.
+4. Nahtloser A/B-Vergleich: Durch die Web Audio API können wir in Echtzeit
+   zwischen dem Originalton und dem bearbeiteten Ton hin- und herschalten,
+   ohne dass es knackt oder die Wiedergabe stoppt.
+
+NACHTEILE & GEKAUFTE PROBLEME:
+1. Hohe CPU-Last auf Mobilgeräten: Die Berechnungen (vor allem die neuronale
+   Rauschunterdrückung RNNoise und FFT-Analysen) fordern älteren Smartphones
+   einiges ab und saugen am Akku.
+2. iOS-Speicher-Limitierungen (Das Safari-OOM-Problem): Apple limitiert den
+   Arbeitsspeicher für einzelne Browser-Tabs auf iPhones und iPads drastisch
+   (oft auf unter 200–300 MB). Lädt man eine zweistündige Predigt als unkomprimiertes
+   Audio in den Speicher, stürzt der Browser-Tab sofort ab (Out Of Memory / OOM).
+   Wir mussten deshalb ein extrem komplexes Chunking-System bauen, das Audio
+   in kleinen 2-Minuten-Häppchen dekomprimiert und nachlädt.
+3. Erst-Ladezeit: Beim ersten Öffnen der Seite müssen die großen WebAssembly-Dateien
+   (FFmpeg, RNNoise-Modelle) heruntergeladen werden. Bei schlechtem Empfang
+   dauert das ein wenig.
+4. Browser-Einschränkungen bei AudioContext: Aus Spamschutz-Gründen verbieten
+   Browser das Abspielen von Audio, bevor der Nutzer nicht mindestens einmal
+   aktiv auf die Seite geklickt hat (User Gesture). Wir müssen das System
+   deshalb sehr behutsam initialisieren.
+
+---
+
+================================================================================
+4. DIE LANDKARTE DES PROJEKTS: ORDNERSTRUKTUR UND DATEIEN
+================================================================================
+
+Lass uns nun das Projekt virtuell aufschlagen. Hier siehst du die Struktur des
+Projekts. Wir gehen durch jeden Ordner und jede wichtige Datei und klären,
+warum sie genau dort liegt und was sie tut.
+
+/ (Wurzelverzeichnis)
+├── package.json          # Die Einkaufsliste des Projekts. Hier stehen alle
+|                         # installierten Programmbibliotheken (Dependencies)
+|                         # und Skripte zum Starten des Servers.
+├── vite.config.ts        # Die Konfigurationsdatei für Vite. Hier sagen wir Vite,
+|                         # wie die TypeScript-Dateien übersetzt werden sollen
+|                         # und wie statische Dateien kopiert werden.
+├── tailwind.config.js    # Konfiguration für Tailwind CSS. Hier definieren wir
+|                         # Farbpaletten, Schriftarten und welche Dateien auf
+|                         # Tailwind-Klassen durchsucht werden sollen.
+├── tsconfig.json         # Konfiguration für TypeScript (die strenge Typ-Prüfung
+|                         # für JavaScript, damit Tippfehler sofort auffallen).
+├── index.html            # Der Einstiegspunkt der Webseite. Sie lädt unser
+|                         # Styling und die Haupt-Code-Datei `src/main.tsx`.
+└── public/               # STATISCHER ORDNER. Dateien hier drin werden eins-zu-eins
+    |                     # an den Browser ausgeliefert. Wichtig für Audio-Worklets
+    |                     # und WASM-Dateien, die separat geladen werden müssen!
+    ├── manifest.json     # Beschreibt die PWA für Smartphones (Name, Farben, Icons
+    |                     # für den Startbildschirm).
+    ├── rnnoise.worklet.js# Das Audio-Worklet, das im Hintergrund-Thread die
+    |                     # RNNoise-Rauschunterdrückung Sample für Sample füttert.
+    ├── rnnoise.wasm      # Der hochoptimierte Maschinencode für das neuronale
+    |                     # RNNoise-Modell.
+    ├── icons/            # Die App-Icons in verschiedenen Auflösungen.
+    ├── worklets/         # Hier liegen unsere maßgeschneiderten Audio-Prozessoren:
+    |   ├── de-esser-processor.js        # Berechnet die Dämpfung von Zischlauten.
+    |   └── preview-limiter-processor.js # Verhindert digitales Übersteuern (Clipping).
+    └── noise-suppression/# Ein alternativer LiteRT-basierter Rauschunterdrückungs-
+                          # Ordner (Vendor-Dateien für fortgeschrittene KI-Modelle).
+
+src/                      # QUELLCODE-ORDNER. Hier lebt die gesamte Magie!
+├── main.tsx              # Der physikalische Startpunkt des React-Codes. Er liest
+|                         # die index.html, dockt React an und rendert die App-Komponente.
+├── App.tsx               # Das emotionale Herz der Oberfläche. Hier wird entschieden,
+|                         # ob der Nutzer den Upload-Bildschirm sieht oder das Mischpult.
+├── index.css             # Lädt die Tailwind-Direktiven und definiert globale
+|                         # CSS-Variablen (z. B. Farbthemen).
+|
+├── types/                # HIER WERDEN TYPEN DEFINIERT (TypeScript-Spezifikum)
+|   ├── audio.types.ts    # Typen für Audio-Schnittstellen (z. B. EQBand-Struktur).
+|   ├── file.types.ts     # Typen für hochgeladene Dateien im Batch-System.
+|   └── processing.types.ts # Typen für alle veränderbaren DSP-Parameter.
+|
+├── utils/                # HILFSWERKZEUGE (Mathematik und Logik ohne UI)
+|   ├── audioMath.ts      # dB-in-Linear-Umrechnungen und Berechnungen der Sättigungs-
+|   |                     # kurven (Röhre/Tape/Auto) für den Exciter.
+|   ├── cn.ts             # Ein winziges Werkzeug, um Tailwind-Klassen dynamisch und
+|   |                     # sauber miteinander zu verschmelzen.
+|   ├── eqCurves.ts       # Vordefinierte EQ-Kurven (z. B. der Sprach-EQ).
+|   ├── speechReferenceLTAS.ts # Das Frequenz-Soll-Profil einer perfekten Stimme.
+|   ├── eqMatcher.ts      # Vergleicht das analysierte Frequenzprofil einer Datei
+|   |                     # mit der perfekten Sprachreferenz und errechnet
+|   |                     # automatisch Korrekturwerte für die 7 EQ-Bänder!
+|   └── mobileAudio.ts    # Erkennung von iPhones/iPads und Hilfsfunktionen zur
+|                         # Berechnung von Speichergrößen, um OOMs zu verhindern.
+|
+├── store/                # DAS GEHIRN (Zustand-Stores)
+|   ├── useAudioStore.ts  # Speichert Playback-Zustände (spielt gerade?, aktuelle Zeit,
+|   |                     # Dauer, Trim-Bereich Start/Ende).
+|   ├── useFileStore.ts   # Verwaltet hochgeladene Dateien, wenn mehrere geladen werden.
+|   ├── useProcessingStore.ts # Der wichtigste Store: Speichert jeden einzelnen Regler
+|   |                     # (EQ-Gewinne, Rauschunterdrückungsstärke, Limiter-Ziel, etc.).
+|   └── useUIStore.ts     # Verwaltet Benachrichtigungen (Toasts) und UI-Zustände.
+|
+├── hooks/                # DIE VERBINDUNGSGLIEDER (React Custom Hooks)
+|   ├── useAudioEngine.ts # Reagiert auf Regler-Änderungen im Store und reicht diese
+|   |                     # an die AudioEngine weiter. Startet die drei Analysephasen.
+|   ├── useLTASAnalysis.ts# Triggert die Frequenzanalyse (Phase 2) im Hintergrund.
+|   ├── useFFmpegLoader.ts# Lädt FFmpeg-WASM beim App-Start und zeigt den Fortschritt an.
+|   ├── useAudioFilePicker.ts # Öffnet den nativen Datei-Auswahldialog.
+|   └── useInView.ts      # Optimiert die UI, indem nur sichtbare Elemente berechnet werden.
+|
+├── components/           # DIE VISUELLEN BAUSTEINE (UI-Komponenten)
+|   ├── brand/            # Logos und Marken-Elemente.
+|   ├── layout/           # Header, Footer und das Grundgerüst der Seite.
+|   ├── ui/               # Wiederverwendbare Basis-Elemente (Buttons, Drehknöpfe /
+|   |                     # RotaryKnob, Ladebildschirme, Toasts).
+|   ├── import/           # Alles für den Dateiupload (DropZone, Dateiliste, etc.).
+|   ├── waveform/         # Die visuelle Wellenform-Anzeige (WaveformDisplay) und
+|   |                     # die Abspiel-Tasten (TransportControls).
+|   ├── eq/               # Der EQ-Graph (visuelle Kurve) und das Experten-EQ-Panel.
+|   ├── processing/       # Die Schieberegler für Kompressor, Rausch- und Brummunter-
+|   |                     # drückung, De-Esser und Exciter.
+|   └── export/           # Das Export-Panel mit Format- und Bitrateneinstellungen.
+|
+└── audio/                # DIE SOUND-ENGINE (Web Audio und FFmpeg-Kern)
+    ├── AudioContextManager.ts # Verwaltet den globalen AudioContext. Löst vor allem
+    |                     # das Problem, dass iOS den Ton stummschaltet, wenn das Gerät
+    |                     # gesperrt oder angerufen wurde.
+    ├── decodeAudioFile.ts# Dekodiert Audiodateien in rohe PCM-Daten. Enthält die
+    |                     # Logik, um große Dateien auf iOS stückweise zu laden.
+    ├── WaveformPeaks.ts  # Berechnet die optischen Ausschläge (Amplituden-Peaks)
+    |                     # der Wellenform, damit wir ein schönes Bild zeichnen können.
+    ├── analysis/         # Messwerkzeuge:
+    |   ├── LUFSAnalyzer.ts # Der wissenschaftliche Herzschlag. Berechnet die Lautheit
+    |   |                 # nach internationalem Rundfunk-Standard ITU-R BS.1770-4.
+    |   ├── dynamicsMeter.ts# Berechnet die Dynamikbandbreite (Loudness Range / LRA).
+    |   ├── HumAnalyzer.ts# Sucht nach störendem Brummen und errechnet die genauen
+    |   |                 # Frequenzen der Obertöne.
+    |   ├── LTASAnalyzer.ts# Errechnet das langfristige Frequenzspektrum des Tons.
+    |   └── previewGainMeter.ts # Berechnet die perfekte Lautstärken-Anpassung, damit der
+    |                     # Vorhör-Ton exakt so laut ist wie die exportierte Datei.
+    └── ffmpeg/           # FFmpeg-Steuerung:
+        ├── FFmpegManager.ts # Lädt und verwaltet die FFmpeg WebAssembly-Instanz.
+        └── Transcoder.ts # Der Übersetzer. Schreibt alle Regler-Einstellungen in einen
+                          # FFmpeg-Filtergraphen um und führt den Export aus.
+
+---
+
+================================================================================
+5. DIE DREI MAGISCHEN PHASEN BEIM LADEN EINSER AUDIO-DATEI
+================================================================================
+
+Sobald ein Nutzer eine Audiodatei auf das Web-Mischpult zieht, startet im
+Hintergrund eine hochpräzise, dreiphasige Pipeline. Sie sorgt dafür, dass die App
+sofort einsatzbereit ist, obwohl im Hintergrund gigantische mathematische Analysen
+laufen. Lass uns diese Phasen genau unter die Lupe nehmen:
+
+PHASE 1: DEKODIERUNG & WELLENFORM-ERSTELLUNG (Sofort-Start)
+- Was passiert?
+  Die Audiodatei (z. B. eine MP3) wird eingelesen. Auf normalen PCs wird sie
+  komplett in unkomprimierte Sound-Informationen (PCM) im Arbeitsspeicher
+  übersetzt. Auf dem iPhone (iOS) greift unser Schutzmechanismus: Wir dekodieren
+  nur die ersten 90 Sekunden in hoher Qualität für das sofortige Abspielen und
+  lesen den Rest der Datei in einer extrem niedrigen Auflösung ein, nur um die
+  Ausschläge für das Auge zeichnen zu können.
+- Das Ergebnis:
+  Der Benutzer sieht innerhalb von Sekundenbruchteilen die Wellenform auf dem
+  Bildschirm und kann sofort auf „Play“ drücken. Es fühlt sich rasend schnell an.
+
+PHASE 2: LTAS-FREQUENZANALYSE (Das spektrale Auge)
+- Was passiert?
+  Während der Benutzer vielleicht schon das Audio abspielt, startet im Hintergrund
+  die Langzeit-Frequenzanalyse (Long-Term Average Spectrum / LTAS). Die App schneidet
+  das Audio im Geiste in Tausende kleine Fensterchen (je 4096 Samples groß) und
+  schickt jedes Fenster durch eine Fourier-Transformation (FFT). Diese zerlegt
+  die Zeitsignale in ihre Frequenzanteile (wie viele Bässe, Mitten, Höhen sind da?).
+  Stille Passagen werden automatisch ignoriert, damit sie das Ergebnis nicht verfälschen.
+- Das Ergebnis:
+  Die App zeichnet eine gelbe Frequenzkurve über den EQ-Graphen. Der Nutzer sieht
+  sofort: „Oh, meine Aufnahme hat viel zu viele dumpfe Bässe und zu wenig Höhen!“
+  Der integrierte EQ-Matcher vergleicht diese Kurve mit dem Idealbild einer
+  menschlichen Stimme und stellt die 7 EQ-Bänder automatisch so ein, dass Frequenz-
+  Fehler sofort ausgeglichen werden.
+
+PHASE 3: DYNAMIK-ANALYSE & AUTO-KOMPRESSOR (Die Lautheits-Waage)
+- Was passiert?
+  Nun misst die App die durchschnittliche Lautstärke (RMS und LUFS) und die
+  Dynamikbandbreite (LRA) der Aufnahme. Sie schaut: Wie laut sind die leisesten
+  Worte im Vergleich zu den lautesten Rufen? Wenn die Dynamik sehr groß ist (der
+  Sprecher wandert weit vom Mikrofon weg oder flüstert und schreit), erkennt das
+  unser Algorithmus.
+- Das Ergebnis:
+  Die App berechnet vollautomatisch die perfekte Kompressor-Einstellung (Schwellenwert
+  und Kompressionsstärke). Sie stellt den Kompressor so ein, dass Pegelunterschiede
+  sanft ausgeglichen werden, ohne dass ein unnatürliches „Pumpen“ entsteht.
+
+---
+
+================================================================================
+6. DSP-TIEFENBOHRUNG: DIE AUDIO-EFFEKTE IM DETAIL ERKLÄRT
+================================================================================
+
+Jetzt begeben wir uns in den Maschinenraum der DSP (Digital Signal Processing).
+Wir folgen dem Tonsignal auf seinem Weg durch das virtuelle Mischpult und
+erklären jeden einzelnen Effekt so, dass du ihn bildlich vor dir siehst.
+
+Hier ist die Reihenfolge der Audio-Bearbeitung (Signal-Chain):
+[Audio-Quelle] -> [Pegelanpassung] -> [Brumm-Filter] -> [7-Band EQ] ->
+   -> [Rauschunterdrückung] -> [Doppel-Kompressor] -> [De-Esser] ->
+   -> [Exciter] -> [Limiter] -> [Lautsprecher/Kopfhörer]
+
+Lass uns diese Schritte einzeln durchgehen:
+
+--------------------------------------------------------------------------------
+A. Die Pegelanpassung (Input Normalization)
+--------------------------------------------------------------------------------
+Bevor wir das Audio bearbeiten, bringen wir es auf einen einheitlichen Arbeitspegel
+von -20 LUFS. Warum?
+Kompressoren arbeiten mit Schwellenwerten (Thresholds). Wenn eine Aufnahme extrem
+leise eingespielt wurde, würde der Kompressor niemals anspringen. Ist sie extrem
+laut, würde er den Ton komplett zerquetschen. Durch die Pegelanpassung am Anfang
+stellen wir sicher, dass alle nachfolgenden Effekte unter optimalen Bedingungen
+arbeiten – völlig egal, wie laut oder leise die Originaldatei war.
+
+--------------------------------------------------------------------------------
+B. Die Brumm-Unterdrückung (Hum Filter Bank)
+--------------------------------------------------------------------------------
+* Das Problem:
+  Netzbrummen durch schlecht abgeschirmte Kabel oder Steckdosen. In Europa summt
+  es bei 50 Hz, in Amerika bei 60 Hz. Das Gemeine: Es summt nicht nur bei dieser
+  Grundfrequenz, sondern auch bei den sogenannten Obertönen (Harmonischen) bei
+  100 Hz, 150 Hz, 200 Hz usw.
+* Die Lösung:
+  Die App bietet zwei Modi:
+  1. Manuell: Ein schmalbandiger Filter (Notch-Filter) schneidet exakt bei 50 Hz
+     und den Obertönen das Signal weg.
+  2. Auto-Modus: Der Nutzer markiert eine Stelle in der Datei, wo niemand spricht,
+     sondern nur das Brummen zu hören ist (Silence Region). Die App macht eine
+     FFT-Analyse, findet die exakten Störfrequenzen und baut maßgeschneiderte,
+     hauchdünne „Notch-Täler“ genau an diesen Frequenzen. Die Stimme bleibt völlig
+     unberührt, das Brummen verschwindet wie von Zauberhand.
+
+--------------------------------------------------------------------------------
+C. Der 7-Band Equalizer (EQ)
+--------------------------------------------------------------------------------
+Ein Equalizer ist ein intelligenter Lautstärkeregler für bestimmte Tonhöhen. Unser
+EQ besitzt 7 Bänder:
+- Band 1 (Low Cut / Highpass): Schneidet alles unter 80 Hz ab. Dort wohnt kein
+  menschlicher Sprachschall, sondern nur Trittschall, Rumpeln oder Wind.
+- Band 2 (Bass-Regler): Für die Wärme der Stimme.
+- Band 3 & 4 (Tiefmitten & Mitten): Hier sitzt oft topfiger „Kistensound“, den
+  wir absenken können, oder die Sprachverständlichkeit, die wir betonen.
+- Band 5 & 6 (Präsenz & Höhen): Bringen Klarheit und Luftigkeit.
+- Band 7 (Lowpass / High Cut): Schneidet extrem hohe Störgeräusche ganz oben ab.
+
+* EQ-Matcher:
+  Das absolute Highlight! Unser Code vergleicht die spektrale Kurve deiner
+  Aufnahme mit der Kurve einer perfekt aufgenommenen Sprecherstimme. Er berechnet
+  mathematisch die Differenz und stellt die EQ-Bänder automatisch so ein, dass
+  deine Aufnahme sich dem Ideal angenähert anpasst.
+
+--------------------------------------------------------------------------------
+D. Die Rauschunterdrückung (RNNoise)
+--------------------------------------------------------------------------------
+* Die Funktionsweise:
+  Hier nutzen wir ein hocheffizientes neuronales Netz (eine künstliche Intelligenz),
+  das von Mozilla entwickelt wurde (RNNoise). Dieses Netz wurde mit Millionen von
+  Stunden Sprache und Rauschen trainiert. Es hat gelernt, das menschliche Sprechen
+  von konstanten Geräuschen (Rauschen, Lüfter, Straße) mathematisch zu trennen.
+* Die 10-Millisekunden-Falle (Phase & Echo):
+  Die RNNoise-KI benötigt eine winzige Bedenkzeit, um das Audio zu verarbeiten. Sie
+  gibt das bearbeitete Signal um genau 10 Millisekunden verzögert aus.
+  Wenn wir nun das rauschreduzierte Signal mit dem Originalsignal mischen wollen
+  (z. B. nur 40 % Rauschunterdrückung, damit es natürlicher klingt), käme es zu
+  katastrophalen Auslöschungen (Kammfilter-Effekt / Echo), weil die beiden Signale
+  nicht mehr im Takt sind!
+* Unsere geniale Lösung im Code:
+  Wir haben in den „trockenen“ Original-Signalweg ein künstliches Verzögerungsglied
+  (DelayNode) eingebaut, das das Originalsignal um exakt denselben Betrag verzögert.
+  Dadurch treffen sich beide Signale wieder absolut synchron im virtuellen Mischpult.
+  Es klingt absolut sauber und phasenrein!
+
+--------------------------------------------------------------------------------
+E. Der Doppel-Stufen-Kompressor (Two-Stage Compression)
+--------------------------------------------------------------------------------
+Ein Kompressor drückt die lautesten Pegelspitzen nach unten, um die Gesamtlautstärke
+gleichmäßiger zu machen. In der Profiliga nutzt man dafür fast nie nur einen
+einzigen Kompressor, sondern zwei hintereinander. SpeechFix simuliert dieses
+analoge Geheimnis im Browser:
+
+- Stufe 1: Der „Spitzenfänger“ (Peak Catcher / 1176-Style)
+  Er arbeitet extrem schnell. Seine Aufgabe ist es, plötzliche, sehr laute und
+  kurze Geräusche (z. B. wenn jemand fest ins Mikrofon pustet oder lacht)
+  blitzschnell abzufangen (3 Millisekunden Reaktionszeit). Er greift nur ganz oben
+  ein.
+- Stufe 2: Der „Sanftmütige Pegelglätter“ (Opto-Kompressor / LA2A-Style)
+  Er reagiert deutlich langsamer (25 Millisekunden Reaktionszeit) und hat eine
+  weiche Kurve (Soft Knee). Er sorgt für den eigentlichen Lautstärkeausgleich
+  über ganze Sätze hinweg. Dadurch klingt die Stimme warm, voll und extrem
+  gleichmäßig, ohne dass man merkt, dass ein Kompressor arbeitet.
+
+--------------------------------------------------------------------------------
+F. Der De-Esser (Desibilance Node)
+--------------------------------------------------------------------------------
+Scharfe S-, Sch- und CH-Laute liegen meistens im Frequenzbereich zwischen 5000 und
+9000 Hz. Wenn ein Sprecher diese Laute sehr scharf ausspricht, schmerzt das in den
+Ohren.
+Unser De-Esser läuft als Audio Worklet im Hintergrund. Er lauscht permanent auf
+diesen Frequenzbereich. Sobald dort ein plötzlicher, unnatürlicher Energieüberschuss
+auftritt (ein S-Laut), senkt das Worklet die Lautstärke genau in diesem schmalen
+Frequenzband für wenige Millisekunden ab und zieht sie danach sofort wieder hoch.
+Das Zischen verschwindet, die Stimme klingt weich und professionell.
+
+--------------------------------------------------------------------------------
+G. Der Exciter / Sättigung (Harmonic Exciter)
+--------------------------------------------------------------------------------
+* Das Problem:
+  Manche Stimmen klingen dumpf oder leblos, weil bei der Aufnahme billige Mikrofone
+  verwendet wurden, die keine feinen Höhen aufzeichnen konnten. Ein normaler EQ
+  kann hier nichts anheben, weil dort schlicht keine Ton-Informationen existieren.
+* Die Lösung:
+  Ein Exciter erzeugt künstlich neue, wunderschöne Obertöne (Oberschwingungen)! Er
+  jagt das Signal durch eine mathematische Verzerrungskurve (Tangens Hyperbolicus
+  / tanh). Es stehen drei Modi zur Auswahl:
+  - Röhrensättigung (Tube): Erzeugt warme, asymmetrische Obertöne (geradzahlige
+    Harmonische). Klingt fett und warm.
+  - Bandsättigung (Tape): Erzeugt dichte, symmetrische Obertöne (ungeradzahlige
+    Harmonische). Klingt brillant und durchsetzungsfähig.
+  - Auto-Modus: Mischt beide Verfahren elegant je nach Frequenzlage.
+
+* Die DC-Blocker-Schutzschaltung:
+  Die asymmetrische Röhrensättigung erzeugt bauartbedingt einen winzigen
+  Gleichspannungs-Versatz (DC-Offset). Das bedeutet, die gesamte Schallwelle
+  wird minimal nach oben oder unten verschoben. Das hört man zwar nicht direkt, aber
+  es raubt den Lautsprechern wertvolle Energie und kann beim Export zu Verzerrungen
+  führen. Wir haben direkt hinter den Exciter einen unhörbaren 10-Hz-Hochpassfilter
+  (DC-Blocker) geschaltet, der diesen Versatz sofort wieder auf null ausgleicht!
+
+--------------------------------------------------------------------------------
+H. Der Preview-Limiter (Brickwall Limiter) & Lautheits-Angleich
+--------------------------------------------------------------------------------
+Damit die App beim Vorhören nicht verzerrt, läuft am Ende der Kette ein echter
+Echtzeit-Sicherheitsgurt: Ein Brickwall-Limiter im Audio Worklet. Er sorgt dafür,
+dass absolut kein Tonsignal die Grenze von -1 dB True Peak überschreiten kann.
+Zusätzlich sorgt die App dafür, dass die Originallautstärke beim Umschalten (A/B-Mode)
+perfekt an die bearbeitete Lautstärke angepasst ist. So fliegt dir beim Umschalten
+nicht das Trommelfell weg und du kannst die Klangqualität völlig unvoreingenommen
+beurteilen!
+
+---
+
+================================================================================
+7. DIE EXPORT-MASCHINE: FFMPEG UND DAS IOS-SPEICHER-WUNDER
+================================================================================
+
+Das Bearbeiten und Vorhören im Browser ist die eine Sache. Aber wie bekommen
+wir das Ergebnis in eine fertige Datei?
+
+Wenn du auf „Exportieren“ klickst, startet der Transcoder (`Transcoder.ts`). Seine
+Hauptaufgabe ist es, die Web-Audio-Einstellungen, die du gerade im Browser hörst,
+in mathematisch exakt dieselben Filter-Befehle für die FFmpeg-Kommandozeile zu
+übersetzen.
+Wir nutzen dazu doppelt präzise (precision=f64) Biquad-Filterkoeffizienten in FFmpeg.
+Die Filterkurven beim Export sind somit zu 100 % identisch mit dem, was du beim
+Vorhören im Browser gehört hast!
+
+* Das iOS-Speicher-Wunder (Chunked Pre-Pass):
+  Wie eingangs erwähnt, stürzen iPhones bei großen Audiodateien im Browser ab,
+  weil sie nicht genug Arbeitsspeicher freigeben. Unsere Lösung im Transcoder ist
+  ein weltweit einzigartiges Kunststück der Speicheroptimierung:
+  1. Wir laden die Originaldatei nicht komplett in den Arbeitsspeicher.
+  2. Wir schneiden die Datei virtuell in kleine, exakt 2 Minuten lange Abschnitte.
+  3. Wir dekodieren immer nur ein einzelnes 2-Minuten-Stückchen.
+  4. Dieses Stückchen schicken wir durch unsere Filter (EQ, Rauschunterdrückung,
+     Brummfilter) direkt im RAM.
+  5. Das fertige Stückchen wird sofort als hochkomprimierte, verlustfreie
+     FLAC-Datei im virtuellen Dateisystem von FFmpeg im Browser zwischengespeichert.
+  6. Dann werfen wir das rohe Stückchen aus dem Arbeitsspeicher, damit das iPhone
+     wieder durchatmen kann (Garbage Collection), und laden das nächste Stückchen.
+  7. Der Clou mit dem „Warm-up“: Damit es an den Schnittstellen der 2-Minuten-Chunks
+     nicht zu Knacksern kommt, weil die RNNoise-KI den Faden verliert, füttern
+     wir die KI bei jedem Chunk mit einer Sekunde „Vorlaufzeit“ (Warm-up-Samples) aus
+     dem vorherigen Chunk. So bleibt das neuronale Netzwerk stabil!
+  8. Am Ende weisen wir FFmpeg an, diese kleinen FLAC-Chunks nahtlos aneinander-
+     zuhängen (Concat Demuxer) und die finale Datei zu schreiben.
+
+Dank dieses Systems können Benutzer stundenlange Aufnahmen direkt auf ihrem
+iPhone bearbeiten, ohne dass die App auch nur einmal ins Schwitzen gerät!
+
+---
+
+================================================================================
+8. BAUSTELLEN & RISIKEN: DIE GRENZEN DIESER ARCHITEKTUR
+================================================================================
+
+Als Software-Spezialist und Audio-Engineer muss ich auch die ungeschminkte
+Wahrheit aussprechen. Durch die Entscheidung, alles lokal im Browser ohne Server
+zu machen, haben wir uns einige harte Probleme eingehandelt:
+
+1. Der „Single-Thread-Flaschenhals“ bei der Analyse:
+   Die Phasen 2 und 3 (LTAS- und Dynamik-Analyse) laufen in JavaScript auf dem
+   Haupt-Thread deines Browsers. Obwohl wir yield-Pausen eingebaut haben (der Code
+   macht alle 200 Frames eine ultrakurze Pause, um die UI atmen zu lassen), kann
+   es bei sehr langen Dateien auf schwächeren Geräten dazu führen, dass die
+   Benutzeroberfläche für Sekundenbruchteile ruckelt oder einfriert.
+
+2. Ungenauigkeiten bei der Dynamik-Vorschau:
+   Wir berechnen die Vorschau-Wellenform und das Dynamik-Meter anhand einer
+   statischen Formel in JavaScript. Der tatsächliche Export nutzt aber FFmpegs
+   `acompressor` und `alimiter`. Obwohl wir uns enorme Mühe gegeben haben, diese
+   Welten aneinander anzugleichen, gibt es minimale Abweichungen zwischen der
+   visuellen Anzeige in der App und der final geschriebenen Datei (vor allem
+   beim Regelverhalten des Limiters bei extrem lauten Transienten).
+
+3. Die Browser-Sandbox-Grenzen:
+   Wir können nicht direkt auf die Festplatte des Nutzers schreiben. FFmpeg muss
+   seine temporären Dateien in einem virtuellen RAM-Dateisystem ablegen. Bei sehr
+   großen Dateien kann dies bei Geräten mit sehr wenig freiem Speicherplatz dazu
+   führen, dass der Browser den Tab einfach schließt.
+
+4. Hoher Akkuverbrauch:
+   Wer mit dieser App auf dem Smartphone im Zug eine Stunde Predigt mastert, wird
+   feststellen, dass das Telefon spürbar warm wird und der Akku schnell schwindet.
+   DSP und neuronale Netze im Browser sind Hochleistungssport für mobile Prozessoren.
+
+---
+
+================================================================================
+9. DIE PERSPEKTIVE DES AUDIO-ENGINEERS: WAS MIR ALS PROFI NOCH FEHLT
+================================================================================
+
+Aus der Sicht eines erfahrenen Mixing Engineers und Soundtechnikers für
+Live-Sprache ist dieses Projekt bereits eine absolute Sensation. Aber wenn wir
+über Perfektion sprechen, fehlen mir noch ein paar entscheidende Werkzeuge im
+Mischpult:
+
+1. Ein Noise Gate / Expander:
+   RNNoise entfernt zwar Rauschen, lässt das Signal aber manchmal etwas
+   „synthetisch“ klingen, wenn niemand spricht. Ein sanftes Noise Gate würde
+   in den Sprechpausen die Lautstärke komplett absenken, sodass absolute Stille
+   herrscht. Das ist der Schlüssel für einen wirklich edlen Podcast- oder Predigt-Sound.
+
+2. Ein De-Clicker / De-Plosive Filter:
+   Prediger und Redner neigen oft zu Schmatzgeräuschen, Mundtrockenheit oder
+   extremen „P-Lauten“ (Plosiven), die das Mikrofon erschüttern. Ein Algorithmus,
+   der diese kurzen, steilen Impulse erkennt und dämpft, wäre ein Segen.
+
+3. Ein dynamischer Equalizer (Dynamic EQ):
+   Ein normaler EQ senkt oder hebt Frequenzen starr an. Wenn ein Prediger aber
+   nur dann mulmig klingt, wenn er laut wird oder nah ans Mikrofon herantritt,
+   wäre ein dynamischer EQ perfekt. Er arbeitet wie ein Kompressor, aber nur für
+   ein bestimmtes Frequenzband.
+
+4. Mehrbändiger Kompressor (Multiband Compressor):
+   Gerade bei Live-Aufnahmen in halligen Räumen oder Kirchen verändert sich die
+   Stimmfarbe je nach Lautstärke drastisch. Ein 3-Band-Kompressor könnte die
+   Bässe, Mitten und Höhen völlig unabhängig voneinander bändigen.
+
+5. Raumhall-Unterdrückung (Dereverberation):
+   Kirchen und Gemeindehäuser haben oft einen extremen Nachhall. Dieser Hall
+   macht die Sprache auf Aufnahmen sehr schwer verständlich. Ein KI-Modell zur
+   Hall-Unterdrückung (Dereverb) wäre der heilige Gral für SermonFix!
+
+---
+
+================================================================================
+10. KONKRETE OPTIMIERUNGSVORSCHLÄGE FÜR DIE ZUKUNFT
+================================================================================
+
+Wie können wir diese App noch besser, schlanker, schneller und professioneller
+machen? Hier sind meine konkreten Vorschläge für die nächste Entwicklungsstufe:
+
+--------------------------------------------------------------------------------
+Vorschlag 1: Web Worker für die Analysen (Performance-Boost)
+--------------------------------------------------------------------------------
+* Das Problem:
+  Die Frequenz- und Dynamikanalysen blockieren den UI-Thread.
+* Die Lösung:
+  Wir lagern die gesamte Berechnungslogik von `LTASAnalyzer.ts` und `dynamicsMeter.ts`
+  in einen sogenannten Web Worker aus. Das ist ein separater Hintergrund-Thread,
+  den moderne Browser anbieten. Die Benutzeroberfläche bleibt dadurch zu 100 %
+  flüssig bedienbar (mit butterweichen 60 Bildern pro Sekunde), selbst wenn im
+  Hintergrund eine dreistündige Audiodatei analysiert wird.
+
+--------------------------------------------------------------------------------
+Vorschlag 2: Integration eines sanften Expanders vor dem Kompressor
+--------------------------------------------------------------------------------
+* Das Problem:
+  In den Atem- und Sprechpausen pumpt der Kompressor das verbleibende Restrauschen
+  unangenehm hoch.
+* Die Lösung:
+  Wir schalten ein sanftes Abwärts-Expander-Glied (Downward Expander) vor die
+  Kompressorstufen. Sobald der Pegel unter -35 dBFS fällt, senkt der Expander das
+  Signal um zusätzliche 6–10 dB ab. Dadurch werden Atemgeräusche und minimales
+  Rauschen in den Pausen extrem unauffällig abgemildert.
+
+--------------------------------------------------------------------------------
+Vorschlag 3: WebAssembly-Beschleunigung für die FFT-Analysen
+--------------------------------------------------------------------------------
+* Das Problem:
+  Die Cooley-Tukey-FFT in `HumAnalyzer.ts` und `LTASAnalyzer.ts` ist in reinem
+  JavaScript geschrieben. Bei sehr langen Dateien dauert die Berechnung lange.
+* Die Lösung:
+  Wir kompilieren eine hochoptimierte FFT-Bibliothek (wie KissFFT oder FFTW) in
+  C nach WebAssembly. Der Geschwindigkeitsvorteil wäre gigantisch: Die Analyse
+  wäre schätzungsweise 5- bis 10-mal schneller fertig!
+
+--------------------------------------------------------------------------------
+Vorschlag 4: KI-Modell-Wechsel (ONNX Runtime Web)
+--------------------------------------------------------------------------------
+* Das Problem:
+  RNNoise ist gut für konstantes Rauschen, stößt aber bei komplexem Straßenlärm
+  oder weinenden Kindern im Saal an seine Grenzen.
+* Die Lösung:
+  Wir nutzen ONNX Runtime Web im Browser, um modernere Deep-Learning-Modelle
+  (wie das Microsoft DNS-Modell oder Facebooks Demucs) direkt im Browser auf der
+  Grafikkarte (WebGPU) des Benutzers laufen zu lassen. Das würde eine Audio-
+  Qualität ermöglichen, die absolut auf dem Niveau von professionellen
+  Desktop-Audio-Suiten liegt.
+
+---
+Mit diesem Leitfaden bist du nun bestens gerüstet! Du kennst jetzt die genauen
+Zusammenhänge, jede Datei, die Algorithmen und die Philosophie hinter SpeechFix.
+Du kannst diesen Code nun nicht nur lesen und verstehen, sondern ihn mit diesem
+Wissen meisterhaft erweitern und verbessern.
+
+Viel Erfolg bei all deinen Audio- und Code-Abenteuern!
+================================================================================
