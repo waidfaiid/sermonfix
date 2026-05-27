@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
-  AudioLines,
   Lock,
   Zap,
   Headphones,
@@ -20,7 +19,7 @@ import { cn } from '@/utils/cn'
 import { useInView } from '@/hooks/useInView'
 import { useAudioFilePicker } from '@/hooks/useAudioFilePicker'
 import { FileUploadArea } from './FileUploadArea'
-import { HeroWaveform } from './FeatureCarousel'
+import { SpeechFixLogo } from '@/components/brand/SpeechFixLogo'
 
 const USE_CASES = [
   { icon: Mic, label: 'Predigten & Vorträge', desc: 'Klarere Stimme für Podcast & Kirche' },
@@ -124,11 +123,8 @@ export function ImportLanding() {
           aria-hidden
         />
         <div className="relative flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-card border border-card-border flex items-center justify-center shadow-lg shadow-black/30">
-            <AudioLines className="w-7 h-7 text-accent" aria-hidden />
-          </div>
-          <HeroWaveform />
-          <h2 className="text-2xl font-bold tracking-tight text-white leading-tight">
+          <SpeechFixLogo className="mb-0.5" />
+          <h2 className="text-xl font-bold tracking-tight text-white leading-tight -mt-1">
             Sprach-Audio
             <span className="text-accent"> verbessern</span>
           </h2>

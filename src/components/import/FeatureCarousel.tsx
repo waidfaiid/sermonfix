@@ -146,16 +146,36 @@ export function FeatureCarousel() {
   )
 }
 
-export function HeroWaveform() {
+const WAVE_HEIGHTS = [0.35, 0.65, 0.9, 0.55, 1, 0.7, 0.45, 0.8, 0.5, 0.75, 0.4, 0.6, 0.85, 0.5, 0.7] as const
+
+interface HeroWaveformProps {
+  className?: string
+  size?: 'sm' | 'md' | 'lg'
+}
+
+export function HeroWaveform({ className, size = 'sm' }: HeroWaveformProps) {
+  const heights = size === 'lg' ? WAVE_HEIGHTS : WAVE_HEIGHTS.slice(0, 12)
   return (
-    <div className="flex items-end justify-center gap-[3px] h-10 opacity-60" aria-hidden>
-      {[0.35, 0.65, 0.9, 0.55, 1, 0.7, 0.45, 0.8, 0.5, 0.75, 0.4, 0.6].map((h, i) => (
+    <div
+      className={cn(
+        'flex items-end justify-center w-full',
+        size === 'lg' && 'gap-[4px] h-14',
+        size === 'md' && 'gap-[3px] h-11',
+        size === 'sm' && 'gap-[3px] h-8',
+        className,
+      )}
+      aria-hidden
+    >
+      {heights.map((h, i) => (
         <span
           key={i}
-          className="w-[3px] rounded-full bg-accent/80 animate-wave-bar"
+          className={cn(
+            'rounded-full bg-gradient-to-t from-accent/50 to-accent animate-wave-bar',
+            size === 'lg' ? 'w-1' : 'w-[3px]',
+          )}
           style={{
             height: `${h * 100}%`,
-            animationDelay: `${i * 0.07}s`,
+            animationDelay: `${i * 0.06}s`,
           }}
         />
       ))}
